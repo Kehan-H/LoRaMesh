@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
  LoRaSim 0.2.1: simulate collisions in LoRa
@@ -55,6 +55,7 @@ import math
 import sys
 import matplotlib.pyplot as plt
 import os
+import networkx as nx
 
 # turn on/off graphics
 graphics = 0
@@ -198,22 +199,14 @@ def timingCollision(p1, p2):
 # this function computes the airtime of a packet
 # according to LoraDesignGuide_STD.pdf
 #
-def airtime(sf,cr,pl,bw): # pl is the payload length in bytes
+def airtime(sf,cr,plen,bw): # plen is the payload length in bytes
     H = 0        # implicit header disabled (H=0) or not (H=1)
     DE = 0       # low data rate optimization enabled (=1) or not (=0)
     Npream = 8   # number of preamble symbol (12.25 from Utz paper)
 
-    if bw == 125 and sf in [11, 12]:
-        # low data rate optimization mandated for BW125 with SF11 and SF12
-        DE = 1
-    if sf == 6:
-        # can only have implicit header with SF6
-        H = 1
-
     Tsym = (2.0**sf)/bw # symbol time
     Tpream = (Npream + 4.25)*Tsym
-    print("sf {}, cr {}, pl {}, bw {}".format(sf, cr, pl, bw))
-    payloadSymbNB = 8 + max(math.ceil((8.0*pl-4.0*sf+28+16-20*H)/(4.0*(sf-2*DE)))*(cr+4),0)
+    payloadSymbNB = 8 + max(math.ceil((8.0*plen-4.0*sf+28+16-20*H)/(4.0*(sf-2*DE)))*(cr+4),0)
     Tpayload = payloadSymbNB * Tsym
     return Tpream + Tpayload
 
@@ -221,164 +214,68 @@ def airtime(sf,cr,pl,bw): # pl is the payload length in bytes
 # this function creates a node
 #
 class myNode():
-    def __init__(self, nodeid, bs, period, packetlen):
+    def __init__(self,nodeid,x,y,h):
         self.nodeid = nodeid
-        self.period = period
-        self.bs = bs
-        self.x = 0
-        self.y = 0
+        self.x = x
+        self.y = y
+        self.h = h
 
-        # this is very complex prodecure for placing nodes
-        # and ensure minimum distance between each pair of nodes
-        found = 0
-        rounds = 0
-        global nodes
-        while (found == 0 and rounds < 100):
-            a = random.random()
-            b = random.random()
-            if b<a:
-                a,b = b,a
-            posx = b*maxDist*math.cos(2*math.pi*a/b)+bsx
-            posy = b*maxDist*math.sin(2*math.pi*a/b)+bsy
-            if len(nodes) > 0:
-                for index, n in enumerate(nodes):
-                    dist = np.sqrt(((abs(n.x-posx))**2)+((abs(n.y-posy))**2))
-                    if dist >= 10:
-                        found = 1
-                        self.x = posx
-                        self.y = posy
-                    else:
-                        rounds = rounds + 1
-                        if rounds == 100:
-                            print("could not place new node, giving up")
-                            exit(-1)
-            else:
-                print("first node")
-                self.x = posx
-                self.y = posy
-                found = 1
-        self.dist = np.sqrt((self.x-bsx)*(self.x-bsx)+(self.y-bsy)*(self.y-bsy)) # distance to base station
-        print('node %d' %nodeid, "x", self.x, "y", self.y, "dist: ", self.dist)
+        self.sent = 0 # sent packets exclude relaying
+        self.relay = 0
+        self.packet = myPacket(self.nodeid,12,4,125,14,20) # default packet parameters
 
-        self.packet = myPacket(self.nodeid, packetlen, self.dist)
-        self.sent = 0 # sent messages including replics
+        # local mesh table
+        self.meshTable = localMeshTable(nodeid, )
 
-        # graphics for node
-        global graphics
-        if (graphics == 1):
-            global ax
-            ax.add_artist(plt.Circle((self.x, self.y), 2, fill=True, color='blue'))
+        # rx buffer
+        self.packetsAtRx = []
+
+    def setPacket(cr,sf,cr,bw,txpow,plen):
+        self.packet = myPacket(self.nodeid,sf,cr,bw,txpow,plen)
+
+
+
+class localMeshTable():
+    def __init__(self,nodeid,nbr,nxt,hops):
+        self.nodeid = nodeid
+        self.nbr = nbr
+        self.nxt = nxt
+        self.hops = hops
 
 #
 # this function creates a packet (associated with a node)
 # it also sets all parameters, currently random
 #
 class myPacket():
-    def __init__(self, nodeid, plen, distance):
+    def __init__(self,nodeid,sf,cr,bw,txpow,plen):
         global experiment
-        global Ptx # transmitted power
         global gamma # path loss exponent
         global d0 # ref. distance in m
         global var # variance due to shadowing
         global Lpld0 # mean path loss at d0
         global GL # combined gain
 
+        self.sf = sf
+        self.cr = cr
+        self.bw = bw
         self.nodeid = nodeid
-        self.txpow = Ptx
+        self.txpow = txpow
+        self.plen = plen
 
-        # randomize configuration values
-        self.sf = random.randint(6,12)
-        self.cr = random.randint(1,4)
-        self.bw = random.choice([125, 250, 500])
-
-        # for certain experiments override these
-        if experiment==1 or experiment == 0:
-            self.sf = 12
-            self.cr = 4
-            self.bw = 125
-
-        # for certain experiments override these
-        if experiment==2:
-            self.sf = 6
-            self.cr = 1
-            self.bw = 500
-        # lorawan
-        if experiment == 4:
-            self.sf = 12
-            self.cr = 1
-            self.bw = 125
-
-
-        # for experiment 3 find the best setting
-        # OBS, some hardcoded values
-        Prx = self.txpow  ## zero path loss by default
-
-        # log-shadow
-        Lpl = Lpld0 + 10*gamma*math.log10(distance/d0)        
-        print("Lpl: {}".format(Lpl))
-        Prx = self.txpow - GL - Lpl
-
-        if (experiment == 3) or (experiment == 5):
-            minairtime = 9999
-            minsf = 0
-            minbw = 0
-
-            print("Prx: " + Prx)
-
-            for i in range(0,6):
-                for j in range(1,4):
-                    if (sensi[i,j] < Prx):
-                        self.sf = int(sensi[i,0])
-                        if j==1:
-                            self.bw = 125
-                        elif j==2:
-                            self.bw = 250
-                        else:
-                            self.bw=500
-                        at = airtime(self.sf, 1, plen, self.bw)
-                        if at < minairtime:
-                            minairtime = at
-                            minsf = self.sf
-                            minbw = self.bw
-                            minsensi = sensi[i, j]
-            if (minairtime == 9999):
-                print("does not reach base station")
-                exit(-1)
-            print("best sf: {} best bw: {} best airtime: {}".format(minsf, minbw, minairtime))
-            self.rectime = minairtime
-            self.sf = minsf
-            self.bw = minbw
-            self.cr = 1
-
-            if experiment == 5:
-                # reduce the txpower if there's room left
-                self.txpow = max(2, self.txpow - math.floor(Prx - minsensi))
-                Prx = self.txpow - GL - Lpl
-                print('minsesi {} best txpow {}'.format(minsensi, self.txpow))
-
-        # transmission range, needs update XXX
-        self.transRange = 150
-        self.pl = plen
         self.symTime = (2.0**self.sf)/self.bw
-        self.arriveTime = 0
-        self.rssi = Prx
-        # frequencies: lower bound + number of 61 Hz steps
-        self.freq = 860000000 + random.randint(0,2622950)
-
-        # for certain experiments override these and
-        # choose some random frequences
-        if experiment == 1:
-            self.freq = random.choice([860000000, 864000000, 868000000])
-        else:
-            self.freq = 860000000
-    
-        print("frequency {}, symTime {}".format(self.freq, self.symTime))
-        print("bw {}, sf {}, cr {}, rssi {}".format(self.bw, self.sf, self.cr, self.rssi))
-        self.rectime = airtime(self.sf,self.cr,self.pl,self.bw)
-        # print("rectime node {}  {}".format(self.nodeid, self.rectime))
+        self.rssi = self.txpow # zero path loss by default
+        self.freq = 900000000
+        self.rectime = airtime(self.sf,self.cr,self.plen,self.bw)
+        
         # denote if packet is collided
         self.collided = 0
         self.processed = 0
+
+    def genPathLoss(self,rxnode): # TODO: change to Okumura-Hata Model
+        # log-shadow
+        Lpl = Lpld0 + 10*gamma*math.log10(distance/d0) + random.normalvariate(0,sqrt(var))     
+        # print("Lpl: {}".format(Lpl))
+        self.rssi = self.txpow - GL - Lpl
 
 #
 # main discrete event loop, runs for each node
@@ -386,15 +283,20 @@ class myPacket():
 # is maintained
 #
 def transmit(env,node):
+    global timeframe
     while True:
-        yield env.timeout(random.expovariate(1.0/float(node.period))) # exponentially distributed sending interval in ms
+        yield env.timeout(random.randint(0,timeframe-node.packet.rectime)) # random offset within time frame (ms)
 
         # time sending and receiving
         # packet arrives -> add to base station
 
         node.sent = node.sent + 1
+        
+        for 
+        
+        
         if (node in packetsAtBS):
-            print("ERROR: packet already in")
+            # print("ERROR: packet already in")
         else:
             sensitivity = sensi[node.packet.sf - 7, [125,250,500].index(node.packet.bw) + 1]
             if node.packet.rssi < sensitivity:
@@ -455,11 +357,12 @@ def transmit(env,node):
 #     print("usage: ./loraDir <nodes> <avgsend> <experiment> <simtime> [collision]")
 #     print("experiment 0 and 1 use 1 frequency only")
 #     exit(-1)
-nrNodes = 10
+nrNodes = 100
 avgSendTime = 1000*60*2 # avg time between packets in ms
-experiment = 1
+experiment = 6
 simtime = 1000*60*60*24
 full_collision = True
+timeframe = 2000 # synced time frame (ms)
 
 # global stuff
 #Rnd = random.seed(12345)
@@ -493,16 +396,11 @@ elif experiment == 2:
     minsensi = -112.0   # no experiments, so value from datasheet
 elif experiment in [3,5]:
     minsensi = np.amin(sensi) ## Experiment 3 can use any setting, so take minimum
-Lpl = Ptx - minsensi
-print("amin {} Lpl {}".format(minsensi, Lpl))
-maxDist = d0*(math.e**((Lpl-Lpld0)/(10.0*gamma)))
-print("maxDist: {}".format(maxDist))
+elif experiemnt == 6:
+    minsensi = sensi[0,2] # 0th row is SF7, 2nd column is BW125
 
-# base station placement
-bsx = maxDist+10
-bsy = maxDist+10
-xmax = bsx + maxDist + 20
-ymax = bsy + maxDist + 20
+# TODO: base station placement
+
 
 # prepare graphics and add sink
 if (graphics == 1):
@@ -513,20 +411,19 @@ if (graphics == 1):
     ax.add_artist(plt.Circle((bsx, bsy), 3, fill=True, color='green'))
     ax.add_artist(plt.Circle((bsx, bsy), maxDist, fill=False, color='green'))
 
+# set beacon
+beacon = myPacket(-1, packetlen)
 
+# TODO: generate spatial distribution using Poisson Hard-Core Process
+# initialise nodes
 for i in range(0,nrNodes):
-    # myNode takes period (in ms), base station id packetlen (in Bytes)
-    # 1000000 = 16 min
-    node = myNode(i,bsId,avgSendTime,20)
+    # TODO: node = myNode()
     nodes.append(node)
     env.process(transmit(env,node))
 
 #prepare show
-if (graphics == 1):
-    plt.xlim([0, xmax])
-    plt.ylim([0, ymax])
-    plt.draw()
-    plt.show()
+G = nx.Graph()
+G.add_nodes_from(nodes)
 
 # start simulation
 env.run(until=simtime)
@@ -561,21 +458,3 @@ print("DER method 2: {}".format(der))
 # this can be done to keep graphics visible
 if (graphics == 1):
     raw_input('Press Enter to continue ...')
-
-# save experiment data into a dat file that can be read by e.g. gnuplot
-# name of file would be:  exp0.dat for experiment 0
-fname = "exp" + str(experiment) + ".dat"
-print(fname)
-if os.path.isfile(fname):
-    res = "\n" + str(nrNodes) + " " + str(nrCollisions) + " "  + str(sent) + " " + str(energy)
-else:
-    res = "#nrNodes nrCollisions nrTransmissions OverallEnergy\n" + str(nrNodes) + " " + str(nrCollisions) + " "  + str(sent) + " " + str(energy)
-with open(fname, "a") as myfile:
-    myfile.write(res)
-myfile.close()
-
-# with open('nodes.txt','w') as nfile:
-#     for n in nodes:
-#         nfile.write("{} {} {}\n".format(n.x, n.y, n.nodeid))
-# with open('basestation.txt', 'w') as bfile:
-#     bfile.write("{} {} {}\n".format(bsx, bsy, 0))
