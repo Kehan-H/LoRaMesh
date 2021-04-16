@@ -55,7 +55,6 @@ import math
 import sys
 import matplotlib.pyplot as plt
 import os
-import networkx as nx
 
 # turn on/off graphics
 graphics = 0
@@ -240,6 +239,8 @@ class myNode():
         global nodes
         if self.id == dest:
             return ''
+        elif dest not in self.rt.destList:
+            return 'no route'
         else:
             for node in nodes:
                 if node.id == self.rt.nextDict[dest]:
@@ -388,7 +389,7 @@ def flood(env,txNode):
 nrNodes = 100
 avgSendTime = 1000*60*2 # avg time between packets in ms
 experiment = 6
-simtime = 1000*60*5
+simtime = 1000*60
 timeframe = 2000 # synced time frame (ms)
 slot = 100
 n0 = 10 # assumed no. of neighbour nodes
@@ -460,14 +461,20 @@ for i in range(0,len(nodes)):
 env.run(until=simtime) # start simulation
 ## flooding done
 
+#prepare show
+
+## test output
 for node in nodes:
     print(node.rt.destList)
+    print('\n')
 
 for node in nodes:
-    print(str(node.id) + ': ' + node.pathTo(1))
+    print(str(node.id) + ': ' + node.pathTo(-1))
+    print('\n')
 
-for node in nodes:
-    print(node.rt.nextDict)
+# for node in nodes:
+#     print(node.rt.nextDict)
+#     print('\n')
 
 end = 1
 
