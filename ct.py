@@ -234,7 +234,7 @@ class myNode():
             self.txTime += pastTime
             self.sent += 1
         self.mode = mode
-        self.modeStart = 0
+        self.modeStart = env.now
 
     def pathTo(self,dest):
         global nodes
@@ -347,7 +347,8 @@ def flood(env,txNode):
             # complete packet has been processed by rx node; can remove it
             for i in range(len(nodes)):
                 if nodes[i].checkDelivery(packet,appearTime): # side effect: packet removed from rxBuffer
-                    # DSDV update routing table 
+                    # DSDV update routing table
+                    relay = 0 # flag needed because there can be multiple entries to update
                     for dest in txNode.rt.destList:
                         if (dest in nodes[i].rt.destList) and (nodes[i].rt.seqDict[dest] >= txNode.rt.seqDict[dest]):
                             # outdated info, do not relay
@@ -355,7 +356,9 @@ def flood(env,txNode):
                         else:
                             nodes[i].rt.updateEntry(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
                             nodes[i].rt.updateSeq(nodes[i].id)
-                            nodes[i].relayPacket(packet) 
+                            relay = 1
+                    if relay:       
+                        nodes[i].relayPacket(packet)
             txNode.modeTo(1)
         # to sleep
         else:
@@ -465,6 +468,8 @@ for node in nodes:
 
 for node in nodes:
     print(node.rt.nextDict)
+
+end = 1
 
 # ## Main Simulation
 # for i in range(0,nrNodes):
