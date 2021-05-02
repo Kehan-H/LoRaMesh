@@ -180,9 +180,11 @@ class myNode():
         self.coll = 0 # packets lost due to collision
         self.miss = 0 # packets lost because rx node is not in rx mode; may overlap with the collision
         self.sent = 0 # sent packets include relayed ones
-        self.pkts = 0 # generated packets exclude relayed ones
         self.relay = 0
         self.rec = 0 # packets successfully received without collision or miss
+
+        self.pkts = 0 # generated packets exclude relayed ones
+        self.arr = 0 # generated packets arriving at destination
 
         # local mesh table
         # self.meshTable = localMeshTable(id, )
@@ -334,8 +336,7 @@ class myPacket():
         return self.txpow - GL - Lpl
 
 #
-# The finite state machine running on every node 
-# DONE: discrete event loop in flooding phase
+# A finite state machine running on every node 
 # DSDV + p-persistent CSMA/CA
 #
 def transceiver(env,txNode):
@@ -359,8 +360,12 @@ def transceiver(env,txNode):
         elif txNode.mode == 2:
             # trasmit packet
             packet = txNode.txBuffer.pop(0)
+            if packet.tp == 0 and (packet.dest not in txNode.rt.destSet):
+                txNode.txBuffer.append(packet)
+                yield env.timeout(10)
+                txNode.modeTo(1)
+                continue
             sensitivity = sensi[packet.sf - 7, [125,250,500].index(packet.bw) + 1]
-
             # receive packet
             appearTime = env.now
             for i in range(len(nodes)):
@@ -369,13 +374,20 @@ def transceiver(env,txNode):
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
                     col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets
                     nodes[i].rxBuffer.append([packet,appearTime,col,mis]) # log packet along with appear time and flags
-            yield env.timeout(packet.airtime())
+            yield env.timeout(packet.airtime()) # airtime
             # complete packet has been processed by rx node; can remove it
             for i in range(len(nodes)):
                 if nodes[i].checkDelivery(packet,appearTime): # side effect: packet removed from rxBuffer
-                    if packet.tp == 0:
-                        pass
-                    elif packet.tp == 1:
+                    if packet.tp == 0: # sensor data
+                        # arrive at dest
+                        if packet.dest == nodes[i].id:
+                            nodes[packet.src].arr += 1
+                        # arrive at next but not dest
+                        elif txNode.rt.nextDict[packet.dest] == nodes[i].id and packet.ttl > 0:
+                            nodes[i].relayPacket(packet)
+                        else:
+                            pass
+                    elif packet.tp == 1: # routing beacon
                         # DSDV update routing table
                         update = 0 # flag needed because there can be multiple entries to update
                         for dest in txNode.rt.destSet:
@@ -390,6 +402,12 @@ def transceiver(env,txNode):
         # to sleep
         else:
             pass
+
+def sensor(env,node):
+    while True:
+        yield env.timeout(avgSendTime)
+        node.genPacket(-1,40,0)
+    
 
 #
 # "main" program
@@ -413,11 +431,11 @@ def transceiver(env,txNode):
 #     print("experiment 0 and 1 use 1 frequency only")
 #     exit(-1)
 nrNodes = 100
-avgSendTime = 1000*60*2 # avg time between packets in ms
+avgSendTime = 1000*60 # avg time between packets in ms
 experiment = 6
-simtime = 1000*60
+simtime = 1000*60*60
 timeframe = 2000 # synced time frame (ms)
-slot = 100
+slot = 1000
 n0 = 10 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
@@ -469,8 +487,8 @@ for i in range(1,92):
 # run nodes
 for i in range(0,len(nodes)):
     env.process(transceiver(env,nodes[i]))
+    env.process(sensor(env,nodes[i]))
 env.run(until=simtime) # start simulation
-# flooding done
 
 # prepare show
 
@@ -478,7 +496,9 @@ env.run(until=simtime) # start simulation
 # test output
 for node in nodes:
     print(str(node.id) + ':' + node.pathTo(-1))
+    print('DER = ' + str(node.arr/node.pkts))
     print('\n')
+
 
 # for node in nodes:
 #     print(node.rt.nextDict)
