@@ -9,7 +9,6 @@ A discrete event simulator for LoRa based mesh network. Based on LoRaSim.
 
 ## To Realise
 
-* Packets passed by value
 * TDMA with centralilzed scheduling
 
 ## Future work
