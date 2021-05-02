@@ -68,19 +68,17 @@ graphics = 0
 #
 # check for collisions at base station
 # Note: called before a packet (or rather node) is inserted into the list
-def checkcollision(packet,txNode,rxNode):
+def checkcollision(packet,rxNode):
     col = 0 # flag needed since there might be several collisions for packet
     if rxNode.rxBuffer: # if there is a packet on air
         for i in range(len(rxNode.rxBuffer)):
             other = rxNode.rxBuffer[i][0]
             appearTime = rxNode.rxBuffer[i][1]
             if other != packet:
-            #    print(">> node {} (sf:{} bw:{} freq:{:.6e})".format(
-            #         other.id, other.packet.sf, other.packet.bw, other.packet.freq))
-               # simple collision
+                # simple collision
                 if frequencyCollision(packet,other) and sfCollision(packet,other) and timingCollision(packet,other,appearTime):
                     # check who collides in the power domain
-                    c = powerCollision(packet,other,txNode,rxNode) # return casualty packet(s)
+                    c = powerCollision(packet,other,rxNode) # return casualty packet(s)
                     # mark all the collided packets
                     # either this one, the other one, or both
                     for p in c:
@@ -120,11 +118,11 @@ def sfCollision(p1,p2):
     # print("no sf collision")
     return False
 
-def powerCollision(p1,p2,txNode,rxNode):
+def powerCollision(p1,p2,rxNode):
     powerThreshold = 6 # dB
     # print("pwr: node {0.nodeid} {0.rssi:3.2f} dBm node {1.nodeid} {1.rssi:3.2f} dBm; diff {2:3.2f} dBm".format(p1, p2, round(p1.rssi - p2.rssi,2)))
-    rssi_p1 = p1.rssiAt(txNode,rxNode)
-    rssi_p2 = p2.rssiAt(txNode,rxNode)
+    rssi_p1 = p1.rssiAt(rxNode)
+    rssi_p2 = p2.rssiAt(rxNode)
     if abs(rssi_p1 - rssi_p2) < powerThreshold:
         # print("collision pwr both node {} and node {}".format(p1.nodeid, p2.nodeid))
         # packets are too close to each other, both collide
@@ -150,7 +148,7 @@ def timingCollision(p1,p2,p2Time):
     Tpreamb = 2**p1.sf/(1.0*p1.bw) * (Npream - 5) # minimum preamble time
 
     # check whether p2 ends in p1's critical section
-    p2_end = p2Time + p2.airtime # the time when p2 appeared + the airtime of p2
+    p2_end = p2Time + p2.airtime() # the time when p2 appeared + the airtime of p2
     p1_cs = env.now + Tpreamb
     # print("collision timing node {} ({},{},{}) node {} ({},{})".format(
     #     p1.nodeid, env.now - env.now, p1_cs - env.now, p1.airtime,
@@ -167,12 +165,11 @@ def timingCollision(p1,p2,p2Time):
 # this function creates a node
 #
 class myNode():
-    def __init__(self,id,x,y,h,maxRx):
-        self.id = id # negative - base station
+    def __init__(self,id,x,y,h):
+        self.id = id # negative for base station
         self.x = x
         self.y = y
         self.h = h
-        self.maxRx = maxRx
 
         self.mode = 1 # 0-sleep; 1-rx; 2-tx
         self.modeStart = 0 # start time of the current mode
@@ -185,7 +182,7 @@ class myNode():
         self.sent = 0 # sent packets include relayed ones
         self.pkts = 0 # generated packets exclude relayed ones
         self.relay = 0
-        self.received = 0 # packets successfully received without collision or miss
+        self.rec = 0 # packets successfully received without collision or miss
 
         # local mesh table
         # self.meshTable = localMeshTable(id, )
@@ -194,12 +191,8 @@ class myNode():
         self.rxBuffer = [] # list of tuples (packet,appear time, collision flag)
         self.txBuffer = []
         
-        self.nbr = [] # neighbours
+        self.nbr = set() # neighbours
         self.rt = myRT(self) # routing table
-
-    def relayPacket(self,packet):
-        self.txBuffer.append(packet)
-        self.relay += 1
     
     # remove packet from rxBuffer; return received or not
     def checkDelivery(self,packet,appearTime):
@@ -211,16 +204,38 @@ class myNode():
                     self.coll += col
                     self.miss += mis
                 else:
-                    self.received += 1
+                    self.rec += 1
                 self.rxBuffer.pop(i)
                 return not (col or mis) # break loop, remove only one
         return False
                   
-    
+    # proccess packet; deep copy packet to rxBuffer
+    def relayPacket(self,packet):
+        copy = myPacket(packet.sn,packet.src,packet.dest,self,packet.plen,packet.tp)
+        copy.ttl = packet.ttl - 1
+        self.txBuffer.append(copy)
+        self.relay += 1
+
     # generate packet
-    def genPacket(self,dest,sf,cr,bw,txpow,plen,freq):
-        self.txBuffer.append(myPacket(self.pkts,self.id,dest,sf,cr,bw,txpow,plen,freq))
+    def genPacket(self,dest,plen,tp):
+        self.txBuffer.append(myPacket(self.pkts,self.id,dest,self,plen,tp))
         self.pkts += 1
+
+    # add or edit entry; return update or not
+    def updateRT(self,dest,nxt,metric,seq):
+        rt = self.rt
+        if dest in rt.destSet:
+            if seq > rt.seqDict[dest]:
+                pass
+            elif seq == rt.seqDict[dest] and metric < rt.metricDict[dest]:
+                pass
+            else:
+                return False
+        rt.destSet.add(dest)
+        rt.nextDict[dest] = nxt
+        rt.metricDict[dest] = metric
+        rt.seqDict[dest] = seq
+        return True
 
     # change status flag and add time of the last status
     def modeTo(self,mode):
@@ -239,59 +254,63 @@ class myNode():
         global nodes
         if self.id == dest:
             return ''
-        elif dest not in self.rt.destList:
+        elif dest not in self.rt.destSet:
             return 'no route'
         else:
             for node in nodes:
                 if node.id == self.rt.nextDict[dest]:
                     nextNode = node
-            return str(self.rt.nextDict[dest]) + ', ' + nextNode.pathTo(dest)
+            return ' -> ' + str(self.rt.nextDict[dest]) + nextNode.pathTo(dest)
 
 #
 # this function creates a routing table (associated with a node)
 #
 class myRT():
     def __init__(self,node):
-        self.destList ={node.id}
+        self.destSet ={node.id}
         self.nextDict = {node.id:node.id}
         self.metricDict = {node.id:0} # hops
         self.seqDict = {node.id:0}
     
     # add or edit entry
     def updateEntry(self,dest,nxt,metric,seq):
-        self.destList.add(dest)
+        self.destSet.add(dest)
         self.nextDict[dest] = nxt
         self.metricDict[dest] = metric
         self.seqDict[dest] = seq
-    
-    def updateSeq(self,dest):
-        self.seqDict[dest] += 2
 
 #
 # this function creates a packet
 # it also sets all parameters
-# relaying will create new copies of a packet but will keep the packet identity (pktNum,src)
 #
 class myPacket():
-    def __init__(self,pktNum,src,dest,sf,cr,bw,txpow,plen,freq):
-        global gamma # path loss exponent
-        global d0 # ref. distance in m
-        global var # variance due to shadowing
-        global Lpld0 # mean path loss at d0
-        global GL # combined gain
-        
-        self.pktNum = pktNum
-        self.src = src
-        self.dest = dest
-        self.sf = sf
-        self.cr = cr
-        self.bw = bw
-        self.txpow = txpow
+    def __init__(self,sn,src,dest,txNode,plen,tp):
+        self.sn = sn # serial number of packet at src node
+        self.src = src # src id
+        self.dest = dest # dest id
+        self.txNode = txNode
         self.plen = plen
-        self.freq = freq
+        
+        # packet type flag:
+        # 0 - sensor data
+        # 1 - routing beacon
+        # 2 - 
+        self.tp = tp
 
-        # self.ttl = 10 # time to live (hops)
+        # default network settings
+        self.txpow = 14
+        self.sf = 7
+        self.cr = 4
+        self.bw = 125
+        self.freq = 900000000
 
+        self.ttl = 15 # time to live (hops)
+
+    def airtime(self):
+        sf = self.sf
+        cr = self.cr
+        bw = self.bw
+        plen = self.plen
         # computes the airtime of a packet according to LoraDesignGuide_STD.pdf
         H = 1        # implicit header disabled (H=0) or not (H=1)
         DE = 0       # low data rate optimization enabled (=1) or not (=0)
@@ -300,21 +319,26 @@ class myPacket():
         Tpream = (Npream + 4.25)*Tsym
         payloadSymbNB = 8 + max(math.ceil((8.0*plen-4.0*sf+28+16-20*H)/(4.0*(sf-2*DE)))*(cr+4),0)
         Tpayload = payloadSymbNB * Tsym
-        self.Tsym = Tsym
-        self.airtime = Tpream + Tpayload
+        return Tpream + Tpayload
 
     # compute rssi at rx node
-    def rssiAt(self,txNode,rxNode): # TODO: change to Okumura-Hata Model
+    def rssiAt(self,rxNode): # TODO: change to Okumura-Hata Model
+        gamma = 2.08 # path loss exponent
+        d0 = 40.0 # ref. distance in m
+        var = 0 # power variance; ignored for now
+        Lpld0 = 127.41 # mean path loss at d0
+        GL = 0 # combined gain
         # log-shadow
-        distance = math.sqrt((txNode.x-rxNode.x)**2+(txNode.y - rxNode.y)**2) # TODO: calculate dist
+        distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2) # TODO: calculate dist
         Lpl = Lpld0 + 10*gamma*math.log10(distance/d0) #+ random.normalvariate(0,math.sqrt(var))     
         return self.txpow - GL - Lpl
 
 #
-# discrete event loop in flooding phase, runs for each tx node
+# The finite state machine running on every node 
+# DONE: discrete event loop in flooding phase
 # DSDV + p-persistent CSMA/CA
 #
-def flood(env,txNode):
+def transceiver(env,txNode):
     global nodes
     env.timeout(random.randint(0,slot))
     while True:
@@ -326,10 +350,10 @@ def flood(env,txNode):
                 if (random.random() <= p0):
                     txNode.modeTo(2) # mode to tx
                 else:
-                    # >p0, jump to the next slot
+                    # >p0, wait till next slot
                     yield env.timeout(slot)
             else:
-                # refresh if channel busy or has nothing to send
+                # refresh when channel busy or has nothing to send
                 yield env.timeout(10)
         # to transmit
         elif txNode.mode == 2:
@@ -340,26 +364,28 @@ def flood(env,txNode):
             # receive packet
             appearTime = env.now
             for i in range(len(nodes)):
-                if txNode.id != nodes[i].id and packet.rssiAt(txNode,nodes[i]) > sensitivity: # rssi good at receiver, add packet to rxBuffer
-                        mis = (nodes[i].mode != 1) # receiver not in rx mode
-                        col = checkcollision(packet,txNode,nodes[i]) # side effect: also change collision flags of other packets
-                        nodes[i].rxBuffer.append((packet,appearTime,col,mis)) # log packet along with appear time and collision flag
-            yield env.timeout(packet.airtime) # airtime
+                if txNode.id != nodes[i].id and packet.rssiAt(nodes[i]) > sensitivity: # rssi good at receiver, add packet to rxBuffer
+                    nodes[i].nbr.add(txNode.id)
+                    mis = (nodes[i].mode != 1) # receiver not in rx mode
+                    col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets
+                    nodes[i].rxBuffer.append([packet,appearTime,col,mis]) # log packet along with appear time and flags
+            yield env.timeout(packet.airtime())
             # complete packet has been processed by rx node; can remove it
             for i in range(len(nodes)):
                 if nodes[i].checkDelivery(packet,appearTime): # side effect: packet removed from rxBuffer
-                    # DSDV update routing table
-                    relay = 0 # flag needed because there can be multiple entries to update
-                    for dest in txNode.rt.destList:
-                        if (dest in nodes[i].rt.destList) and (nodes[i].rt.seqDict[dest] >= txNode.rt.seqDict[dest]):
-                            # outdated info, do not relay
-                            continue
-                        else:
-                            nodes[i].rt.updateEntry(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
-                            nodes[i].rt.updateSeq(nodes[i].id)
-                            relay = 1
-                    if relay:       
-                        nodes[i].relayPacket(packet)
+                    if packet.tp == 0:
+                        pass
+                    elif packet.tp == 1:
+                        # DSDV update routing table
+                        update = 0 # flag needed because there can be multiple entries to update
+                        for dest in txNode.rt.destSet:
+                            # return update or not; side effect: update entry
+                            update = nodes[i].updateRT(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
+                        if update and packet.ttl > 0:       
+                            nodes[i].relayPacket(packet)
+                            nodes[i].rt.seqDict[nodes[i].id] += 2
+                    else:
+                        pass
             txNode.modeTo(1)
         # to sleep
         else:
@@ -407,11 +433,7 @@ nrReceived = 0 # no. of packets successfully received
 nrLost = 0 # no. of packets fail to arrive the destination (sensi or collision)
 
 Ptx = 14 # transmitted power
-gamma = 2.08 # path loss exponent
-d0 = 40.0 # ref. distance in m
-var = 0 # power variance; ignored for now
-Lpld0 = 127.41 # mean path loss at d0
-GL = 0 # combined gain
+
 
 # this is an array with measured values for sensitivity
 # see paper, Table 3
@@ -433,43 +455,29 @@ elif experiment == 6:
     minsensi = sensi[0,2] # 0th row is SF7, 2nd column is BW125
 
 # TODO: base station placement
-bs = myNode(-1,0,0,10,1)
-bs.genPacket(-1,7,4,125,13,40,900000000)
+bs = myNode(-1,0,0,10)
+bs.genPacket(-1,40,1)
 nodes.append(bs)
 
 # prepare graphics and add sink
 
 # TODO: generate spatial distribution using Poisson Hard-Core Process
-nodes.append(myNode(1,100,100,1,1))
-nodes.append(myNode(2,100,-100,1,1))
-nodes.append(myNode(3,-100,100,1,1))
-nodes.append(myNode(4,-100,-100,1,1))
+locs = np.loadtxt('91.csv',delimiter=',')
+for i in range(1,92):
+    nodes.append(myNode(i,locs[0,i-1],locs[0,i-2],1))
 
-nodes.append(myNode(5,200,200,1,1))
-nodes.append(myNode(6,200,-200,1,1))
-nodes.append(myNode(7,-200,200,1,1))
-nodes.append(myNode(8,-200,-200,1,1))
-
-# # initialise nodes
-# for i in range(0,nrNodes):
-#     node = myNode(0,0,0,0,1) # TODO: define nodes wrt distribution
-#     nodes.append(node)
-
-# TODO: get mesh table by flooding
+# run nodes
 for i in range(0,len(nodes)):
-    env.process(flood(env,nodes[i]))
+    env.process(transceiver(env,nodes[i]))
 env.run(until=simtime) # start simulation
-## flooding done
+# flooding done
 
-#prepare show
+# prepare show
 
-## test output
+
+# test output
 for node in nodes:
-    print(node.rt.destList)
-    print('\n')
-
-for node in nodes:
-    print(str(node.id) + ': ' + node.pathTo(-1))
+    print(str(node.id) + ':' + node.pathTo(-1))
     print('\n')
 
 # for node in nodes:
@@ -477,13 +485,6 @@ for node in nodes:
 #     print('\n')
 
 end = 1
-
-# ## Main Simulation
-# for i in range(0,nrNodes):
-#     node = myNode(0,0,0,0,1) # TODO: define nodes wrt distribution
-#     nodes.append(node)
-
-#     env.process(transmit(env,node))
 
 # #prepare show
 # G = nx.Graph()
