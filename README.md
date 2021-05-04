@@ -2,6 +2,12 @@
 
 A discrete event simulator for LoRa based mesh network. Based on LoRaSim.
 
+## Environment
+
+* Python 3.5
+* SymPy 3.0
+* NetworkX 2.4
+
 ## Realised
 
 * DSDV
