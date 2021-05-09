@@ -185,7 +185,7 @@ class myNode():
         self.rec = 0 # packets successfully received without collision or miss
 
         self.pkts = 0 # generated packets exclude relayed ones
-        self.arr = 0 # generated packets arriving at destination
+        self.arr = [] # generated packets arriving at destination
 
         # local mesh table
         # self.meshTable = localMeshTable(id, )
@@ -344,7 +344,7 @@ class myPacket():
 #
 def transceiver(env,txNode):
     global nodes
-    env.timeout(random.randint(0,slot))
+    env.timeout(random.randint(0,1000))
     while True:
         # to receive
         if txNode.mode == 1:
@@ -384,8 +384,8 @@ def transceiver(env,txNode):
                     if packet.tp == 0: # sensor data
                         # arrive at dest
                         if packet.dest == nodes[i].id:
-                            nodes[packet.src].arr += 1
-                            if nodes[packet.src].arr > nodes[packet.src].pkts:
+                            nodes[packet.src].arr.append(packet)
+                            if len(nodes[packet.src].arr) > nodes[packet.src].pkts:
                                 raise ValueError(str(packet.src) + ' more arrived than generated.')
                         # arrive at next but not dest
                         elif txNode.rt.nextDict[packet.dest] == nodes[i].id and packet.ttl > 0:
@@ -483,7 +483,7 @@ env.run(until=simtime) # start simulation
 # output
 for node in nodes:
     print(str(node.id) + ':' + node.pathTo(-1))
-    print('DER = ' + str(node.arr/node.pkts))
+    print('DER = ' + str(len(node.arr)/node.pkts))
     print('\n')
 
     # prepare show
