@@ -373,7 +373,7 @@ def transceiver(env,txNode):
             appearTime = env.now
             for i in range(len(nodes)):
                 if txNode.id != nodes[i].id and packet.rssiAt(nodes[i]) > sensitivity: # rssi good at receiver, add packet to rxBuffer
-                    nodes[i].nbr.add(txNode.id)
+                    nodes[i].nbr.add(txNode)
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
                     col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets
                     nodes[i].rxBuffer.append([packet,appearTime,col,mis]) # log packet along with appear time and flags
@@ -489,6 +489,9 @@ for node in nodes:
     # prepare show
     plt.scatter(node.x, node.y)
     plt.annotate(node.id,(node.x, node.y))
+
+    for n in node.nbr:
+        plt.plot([node.x,n.x],[node.y,n.y])
 
 plt.show()
 
