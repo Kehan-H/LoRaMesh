@@ -303,7 +303,7 @@ class myPacket():
         self.tp = tp
 
         # default network settings
-        self.txpow = 14
+        self.txpow = Ptx
         self.sf = 7
         self.cr = 4
         self.bw = 125
@@ -437,7 +437,7 @@ bsId = 1
 nrReceived = 0 # no. of packets successfully received
 nrLost = 0 # no. of packets fail to arrive the destination (sensi or collision)
 
-Ptx = 14 # transmitted power
+Ptx = 16 # transmitted power
 
 
 # this is an array with measured values for sensitivity
@@ -487,11 +487,12 @@ for node in nodes:
     print('\n')
 
     # prepare show
-    plt.scatter(node.x, node.y)
-    plt.annotate(node.id,(node.x, node.y))
 
     for n in node.nbr:
-        plt.plot([node.x,n.x],[node.y,n.y])
+        plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
+
+    plt.scatter(node.x,node.y,color='red',zorder=5)
+    plt.annotate(node.id,(node.x, node.y),color='black',zorder=10)
 
 plt.show()
 
