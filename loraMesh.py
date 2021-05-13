@@ -184,8 +184,8 @@ class myNode():
         self.relay = 0
         self.rec = 0 # packets successfully received without collision or miss
 
-        self.pkts = 0 # generated packets exclude relayed ones
-        self.arr = 0 # generated packets arriving at destination
+        self.pkts = [] # generated packets exclude relayed ones
+        self.arr = [] # generated packets arriving at destination
 
         # local mesh table
         # self.meshTable = localMeshTable(id, )
@@ -223,8 +223,9 @@ class myNode():
 
     # generate packet
     def genPacket(self,dest,plen,tp):
-        self.txBuffer.append(myPacket(self.pkts,self.id,dest,self,plen,tp))
-        self.pkts += 1
+        packet = myPacket(len(self.pkts),self.id,dest,self,plen,tp)
+        self.txBuffer.append(packet)
+        self.pkts.append(packet)
 
     # add or edit entry; return update or not
     def updateRT(self,dest,nxt,metric,seq):
@@ -296,7 +297,7 @@ class myPacket():
         self.txNode = txNode
         self.plen = plen
         
-        # packet type flag:
+        # packet type identifier:
         # 0 - sensor data
         # 1 - routing beacon
         # 2 - 
@@ -304,12 +305,12 @@ class myPacket():
 
         # default network settings
         self.txpow = Ptx
-        self.sf = 7
-        self.cr = 4
-        self.bw = 125
-        self.freq = 900000000
+        self.sf = SF
+        self.cr = CR
+        self.bw = BW
+        self.freq = Frequency
 
-        self.ttl = 15 # time to live (hops)
+        self.ttl = TTL # time to live (hops)
 
     def airtime(self):
         sf = self.sf
@@ -327,16 +328,35 @@ class myPacket():
         return Tpream + Tpayload
 
     # compute rssi at rx node
-    def rssiAt(self,rxNode): # TODO: change to Okumura-Hata Model
+    def rssiAt(self,rxNode):
         gamma = 2.08 # path loss exponent
         d0 = 40.0 # ref. distance in m
         var = 0 # power variance; ignored for now
         Lpld0 = 127.41 # mean path loss at d0
         GL = 0 # combined gain
         # log-shadow
-        distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2) # TODO: calculate dist
+        distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
         Lpl = Lpld0 + 10*gamma*math.log10(distance/d0) + random.normalvariate(0,math.sqrt(var))     
         return self.txpow - GL - Lpl
+        
+        # ptxw = 10**(self.txpow/10)*10**(-3) # 19 dBm = 79.43 mW; close to the upper bound of LoRa devices
+        # distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
+
+        # # Gaussian noise
+        # ndb = -168 + 10*math.log10(1000*self.bw) # -174+NF+10log10(BW) with NF = 6; Lorasim paper eq. [4] (AN1200.13 eqn. [1])
+        # nw = 10**(ndb/10)*10**(-3) # convert noise variance from dbm to W
+        # noise = np.random.normal(0,math.sqrt(nw))
+
+        # # Rayleigh fading
+        # wavelength = 299792458/(self.freq)
+        # gd = wavelength/((4*math.pi*distance)**2.7)
+        
+        # # received power in watts
+        # prxw = gd*ptxw*np.random.exponential(1) + noise # Nicola's eq. [3][4]
+        # prxw = max(10**(-18),prxw)
+        
+        # # received power in dbm
+        # return 10*math.log10(prxw*(10**3))
 
 #
 # A finite state machine running on every node 
@@ -374,24 +394,27 @@ def transceiver(env,txNode):
             for i in range(len(nodes)):
                 if txNode.id != nodes[i].id and packet.rssiAt(nodes[i]) > sensitivity: # rssi good at receiver, add packet to rxBuffer
                     nodes[i].nbr.add(txNode)
+                    col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets                    
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
-                    col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets
                     nodes[i].rxBuffer.append([packet,appearTime,col,mis]) # log packet along with appear time and flags
             yield env.timeout(packet.airtime()) # airtime
             # complete packet has been processed by rx node; can remove it
             for i in range(len(nodes)):
                 if nodes[i].checkDelivery(packet): # side effect: packet removed from rxBuffer
                     if packet.tp == 0: # sensor data
-                        # arrive at dest
-                        if packet.dest == nodes[i].id:
-                            nodes[packet.src].arr += 1
-                            if nodes[packet.src].arr > nodes[packet.src].pkts:
-                                raise ValueError(str(packet.src) + ' more arrived than generated.')
-                        # arrive at next but not dest
-                        elif txNode.rt.nextDict[packet.dest] == nodes[i].id and packet.ttl > 0:
-                            nodes[i].relayPacket(packet)
-                        else:
+                        # not supposed to receive, waste
+                        if txNode.rt.nextDict[packet.dest] != nodes[i].id:
                             pass
+                        # arrive at next/dest
+                        else:
+                            if packet.dest == nodes[i].id:
+                                nodes[packet.src].arr.append(packet)
+                                if len(nodes[packet.src].arr) > len(nodes[packet.src].pkts):
+                                    raise ValueError(str(packet.src) + ' more arrived than generated.')
+                            elif packet.ttl > 0:
+                                nodes[i].relayPacket(packet)
+                            else:
+                                pass
                     elif packet.tp == 1: # routing beacon
                         # DSDV update routing table
                         update = 0 # flag needed because there can be multiple entries to update
@@ -418,27 +441,23 @@ def sensor(env,node):
 # "main" program
 #
 
-experiment = 6
-avgSendTime = 2000*60 # avg time between packets in ms
+# simulation settings
 simtime = 1*1000*60*60
+
+# default tx param
+Ptx = 14
+SF = 7
+CR = 4
+BW = 125
+Frequency = 900000000
+TTL = 15
+
+# network settings
+avgSendTime = 2000*60 # avg time between packets in ms
 timeframe = 2000 # synced time frame (ms)
 slot = 1000
 n0 = 10 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
-
-# global stuff
-#Rnd = random.seed(12345)
-nodes = []
-env = simpy.Environment()
-
-# max distance: 300m in city, 3000 m outside (5 km Utz experiment)
-# also more unit-disc like according to Utz
-bsId = 1
-nrReceived = 0 # no. of packets successfully received
-nrLost = 0 # no. of packets fail to arrive the destination (sensi or collision)
-
-Ptx = 16 # transmitted power
-
 
 # this is an array with measured values for sensitivity
 # see paper, Table 3
@@ -450,14 +469,10 @@ sf11 = np.array([11,-134.5,-132.75,-128.75])
 sf12 = np.array([12,-133.25,-132.25,-132.25])
 
 sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
-if experiment in [0,1,4]:
-    minsensi = sensi[5,2]  # 5th row is SF12, 2nd column is BW125
-elif experiment == 2:
-    minsensi = -112.0   # no experiments, so value from datasheet
-elif experiment in [3,5]:
-    minsensi = np.amin(sensi) ## Experiment 3 can use any setting, so take minimum
-elif experiment == 6:
-    minsensi = sensi[0,2] # 0th row is SF7, 2nd column is BW125
+
+# global stuff
+nodes = []
+env = simpy.Environment()
 
 # TODO: base station placement
 bs = myNode(-1,0,0,10)
@@ -477,27 +492,20 @@ for i in range(0,len(nodes)):
     env.process(sensor(env,nodes[i]))
 env.run(until=simtime) # start simulation
 
-# prepare show
-
-
-# output
+# print routes and DER
 for node in nodes:
     print(str(node.id) + ':' + node.pathTo(-1))
-    print('DER = ' + str(node.arr/node.pkts))
+    print('DER = ' + str(len(node.arr)/len(node.pkts)))
     print('\n')
 
-    # prepare show
-
+# prepare show
+for node in nodes:
     for n in node.nbr:
         plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
 
     plt.scatter(node.x,node.y,color='red',zorder=5)
     plt.annotate(node.id,(node.x, node.y),color='black',zorder=10)
-
 plt.show()
-
-# # print stats and save into file
-# # print("nrCollisions {}".format(nrCollisions))
 
 # # compute energy
 # # Transmit consumption in mA from -2 to +17 dBm
@@ -509,20 +517,3 @@ plt.show()
 # V = 3.0     # voltage XXX
 # sent = sum(n.sent for n in nodes)
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
-
-# # print("energy (in J): {}".format(energy))
-# # print("sent packets: {}".format(sent))
-# # print("collisions: {}".format(nrCollisions))
-# # print("received packets: {}".format(nrReceived))
-# # print("processed packets: {}".format(nrProcessed))
-# # print("lost packets: {}".format(nrLost))
-
-# # data extraction rate
-# der = (sent-nrCollisions)/float(sent)
-# print("DER: {}".format(der))
-# der = (nrReceived)/float(sent)
-# print("DER method 2: {}".format(der))
-
-# # this can be done to keep graphics visible
-# if (graphics == 1):
-#     raw_input('Press Enter to continue ...')
