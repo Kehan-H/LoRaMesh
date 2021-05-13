@@ -277,13 +277,6 @@ class myRT():
         self.nextDict = {node.id:node.id}
         self.metricDict = {node.id:0} # hops
         self.seqDict = {node.id:0}
-    
-    # add or edit entry
-    def updateEntry(self,dest,nxt,metric,seq):
-        self.destSet.add(dest)
-        self.nextDict[dest] = nxt
-        self.metricDict[dest] = metric
-        self.seqDict[dest] = seq
 
 #
 # this function creates a packet
@@ -408,7 +401,7 @@ def transceiver(env,txNode):
                         # arrive at next/dest
                         else:
                             if packet.dest == nodes[i].id:
-                                nodes[packet.src].arr.append(packet)
+                                nodesDict[packet.src].arr.append(packet)
                                 if len(nodes[packet.src].arr) > len(nodes[packet.src].pkts):
                                     raise ValueError(str(packet.src) + ' more arrived than generated.')
                             elif packet.ttl > 0:
@@ -472,19 +465,23 @@ sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
 
 # global stuff
 nodes = []
+nodesDict = {}
 env = simpy.Environment()
 
 # TODO: base station placement
 bs = myNode(-1,0,0,10)
 bs.genPacket(-1,40,1)
 nodes.append(bs)
+nodesDict[-1] = bs
 
 # prepare graphics and add sink
 
 # TODO: generate spatial distribution using Poisson Hard-Core Process
 locs = np.loadtxt('75.csv',delimiter=',')
-for i in range(1,locs.shape[1]+1):
-    nodes.append(myNode(i,locs[0,i-1],locs[1,i-1],1))
+for i in range(0,locs.shape[1]):
+    node = myNode(i,locs[0,i-1],locs[1,i-1],1)
+    nodes.append(node)
+    nodesDict[i] = node
 
 # run nodes
 for i in range(0,len(nodes)):
