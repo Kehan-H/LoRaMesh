@@ -198,10 +198,10 @@ class myNode():
         self.rt = myRT(self) # routing table
     
     # remove packet from rxBuffer; return received or not
-    def checkDelivery(self,packet,appearTime):
+    def checkDelivery(self,packet):
         for i in range(len(self.rxBuffer)):
             other = self.rxBuffer[i]
-            if other[0].txNode == packet.txNode and other[1] == appearTime:
+            if other[0] == packet:
                 col = self.rxBuffer[i][2]
                 mis = self.rxBuffer[i][3]
                 rec = not (col or mis)
@@ -380,7 +380,7 @@ def transceiver(env,txNode):
             yield env.timeout(packet.airtime()) # airtime
             # complete packet has been processed by rx node; can remove it
             for i in range(len(nodes)):
-                if nodes[i].checkDelivery(packet,appearTime): # side effect: packet removed from rxBuffer
+                if nodes[i].checkDelivery(packet): # side effect: packet removed from rxBuffer
                     if packet.tp == 0: # sensor data
                         # arrive at dest
                         if packet.dest == nodes[i].id:
