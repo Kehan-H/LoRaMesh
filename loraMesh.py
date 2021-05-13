@@ -223,7 +223,7 @@ class myNode():
 
     # generate packet
     def genPacket(self,dest,plen,tp):
-        packet = myPacket(len(self.pkts),self.id,dest,self,plen,tp)
+        packet = myPacket(len(self.pkts),self,dest,self,plen,tp)
         self.txBuffer.append(packet)
         self.pkts.append(packet)
 
@@ -285,7 +285,7 @@ class myRT():
 class myPacket():
     def __init__(self,sn,src,dest,txNode,plen,tp):
         self.sn = sn # serial number of packet at src node
-        self.src = src # src id
+        self.src = src # src node
         self.dest = dest # dest id
         self.txNode = txNode
         self.plen = plen
@@ -401,9 +401,9 @@ def transceiver(env,txNode):
                         # arrive at next/dest
                         else:
                             if packet.dest == nodes[i].id:
-                                nodesDict[packet.src].arr.append(packet)
-                                if len(nodes[packet.src].arr) > len(nodes[packet.src].pkts):
-                                    raise ValueError(str(packet.src) + ' more arrived than generated.')
+                                packet.src.arr.append(packet)
+                                if len(packet.src.arr) > len(packet.src.pkts):
+                                    raise ValueError(str(packet.src.id) + ' more arrived than generated.')
                             elif packet.ttl > 0:
                                 nodes[i].relayPacket(packet)
                             else:
@@ -465,14 +465,12 @@ sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
 
 # global stuff
 nodes = []
-nodesDict = {}
 env = simpy.Environment()
 
 # TODO: base station placement
 bs = myNode(-1,0,0,10)
 bs.genPacket(-1,40,1)
 nodes.append(bs)
-nodesDict[-1] = bs
 
 # prepare graphics and add sink
 
@@ -481,7 +479,6 @@ locs = np.loadtxt('75.csv',delimiter=',')
 for i in range(0,locs.shape[1]):
     node = myNode(i,locs[0,i-1],locs[1,i-1],1)
     nodes.append(node)
-    nodesDict[i] = node
 
 # run nodes
 for i in range(0,len(nodes)):
