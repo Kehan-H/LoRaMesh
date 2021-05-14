@@ -73,17 +73,16 @@ def checkcollision(packet,rxNode):
     if rxNode.rxBuffer: # if there is a packet on air
         for i in range(len(rxNode.rxBuffer)):
             other = rxNode.rxBuffer[i][0]
-            appearTime = rxNode.rxBuffer[i][1]
             if other != packet:
                 # simple collision
-                if frequencyCollision(packet,other) and sfCollision(packet,other) and timingCollision(packet,other,appearTime):
+                if frequencyCollision(packet,other) and sfCollision(packet,other) and timingCollision(packet,other):
                     # check who collides in the power domain
                     c = powerCollision(packet,other,rxNode) # return casualty packet(s)
                     # mark all the collided packets
                     # either this one, the other one, or both
                     for p in c:
                         if p == other:
-                            rxNode.rxBuffer[i][2] = 1 # set collide flag for entry in rxBuffer
+                            rxNode.rxBuffer[i][1] = 1 # set collide flag for entry in rxBuffer
                             # raise ValueError('Collision happened for pkt from ' + str(rxNode.rxBuffer[i][0].txNode.id) + ' and ' + str(packet.txNode.id) + ' to ' + str(rxNode.id))
                         if p == packet:
                             col = 1
@@ -137,7 +136,7 @@ def powerCollision(p1,p2,rxNode):
     # p2 was the weaker packet, return it as a casualty
     return (p2,)
 
-def timingCollision(p1,p2,p2Time):
+def timingCollision(p1,p2):
     # assuming p1 is the freshly arrived packet and this is the last check
     # we've already determined that p1 is a weak packet, so the only
     # way we can win is by being late enough (only the first n - 5 preamble symbols overlap)
@@ -149,7 +148,7 @@ def timingCollision(p1,p2,p2Time):
     Tpreamb = 2**p1.sf/(1.0*p1.bw) * (Npream - 5) # minimum preamble time
 
     # check whether p2 ends in p1's critical section
-    p2_end = p2Time + p2.airtime() # the time when p2 appeared + the airtime of p2
+    p2_end = p2.appearTime + p2.airtime() # the time when p2 appeared + the airtime of p2
     p1_cs = env.now + Tpreamb
     # print("collision timing node {} ({},{},{}) node {} ({},{})".format(
     #     p1.nodeid, env.now - env.now, p1_cs - env.now, p1.airtime,
@@ -181,6 +180,8 @@ class myNode():
         # statistics
         self.coll = 0 # packets lost due to collision
         self.miss = 0 # packets lost because rx node is not in rx mode; may overlap with the collision
+        self.fadn = 0 # packets lost due to fading, independent
+
         self.relay = 0
         self.pkts = 0 # packets generated, exclude relayed ones
         self.arr = 0 # packets arrive at destination
@@ -195,16 +196,14 @@ class myNode():
         self.nbr = set() # neighbours
         self.rt = myRT(self) # routing table
     
-    # remove packet from rxBuffer; return received or not
+    # remove packet from rxBuffer; return [col,mis]
     def checkDelivery(self,packet):
         for i in range(len(self.rxBuffer)):
             other = self.rxBuffer[i]
             if other[0] == packet:
-                col = self.rxBuffer[i][2]
-                mis = self.rxBuffer[i][3]
-                self.rxBuffer.pop(i)
-                return not (col or mis) # break loop, remove only one
-        return False
+                entry = self.rxBuffer.pop(i)
+                return entry[1:3] # break loop, remove only one
+        return []
                   
     # proccess packet; deep copy packet to rxBuffer
     def relayPacket(self,packet):
@@ -290,13 +289,15 @@ class myPacket():
         self.tp = tp
 
         # default network settings
-        self.txpow = Ptx
+        self.txpow = PTX
         self.sf = SF
         self.cr = CR
         self.bw = BW
-        self.freq = Frequency
+        self.freq = FREQ
 
         self.ttl = TTL # time to live (hops)
+
+        self.appearTime = None
 
     def airtime(self):
         sf = self.sf
@@ -369,6 +370,7 @@ def transceiver(env,txNode):
         elif txNode.mode == 2:
             # trasmit packet
             packet = txNode.txBuffer.pop(0)
+            packet.appearTime = env.now
             if packet.tp == 0 and (packet.dest not in txNode.rt.destSet):
                 txNode.txBuffer.append(packet)
                 yield env.timeout(10)
@@ -376,18 +378,20 @@ def transceiver(env,txNode):
                 continue
             sensitivity = sensi[packet.sf - 7, [125,250,500].index(packet.bw) + 1]
             # receive packet
-            appearTime = env.now
             for i in range(len(nodes)):
                 if txNode.id != nodes[i].id and packet.rssiAt(nodes[i]) > sensitivity: # rssi good at receiver, add packet to rxBuffer
                     nodes[i].nbr.add(txNode)
                     col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets                    
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
-                    nodes[i].rxBuffer.append([packet,appearTime,col,mis]) # log packet along with appear time and flags
+                    nodes[i].rxBuffer.append([packet,col,mis]) # log packet along with appear time and flags
             yield env.timeout(packet.airtime()) # airtime
             # complete packet has been processed by rx node; can remove it
             for i in range(len(nodes)):
-                if nodes[i].checkDelivery(packet): # side effect: packet removed from rxBuffer
-                    if packet.tp == 0: # sensor data
+                result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
+                # rssi good but there is col or mis
+                if result and not any(result): 
+                    # sensor data
+                    if packet.tp == 0:
                         # not supposed to receive, wasted
                         if txNode.rt.nextDict[packet.dest] != nodes[i].id:
                             pass
@@ -401,7 +405,8 @@ def transceiver(env,txNode):
                                 nodes[i].relayPacket(packet)
                             else:
                                 pass
-                    elif packet.tp == 1: # routing beacon
+                    # routing beacon
+                    elif packet.tp == 1:
                         # DSDV update routing table
                         update = 0 # flag needed because there can be multiple entries to update
                         for dest in txNode.rt.destSet:
@@ -410,8 +415,20 @@ def transceiver(env,txNode):
                         if update and packet.ttl > 0:       
                             nodes[i].relayPacket(packet)
                             nodes[i].rt.seqDict[nodes[i].id] += 2
+                    # reserved for other packet type
                     else:
                         pass
+                # catch losing condition when node is critical
+                elif txNode.rt.nextDict[packet.dest] == nodes[i].id:
+                    try:
+                        packet.src.coll += result[0]
+                        packet.src.miss += result[1]
+                    # error when result is empty
+                    except:
+                        packet.src.fadn += 1
+                # rssi bad (not found in rxBuffer) or coll or miss
+                else:
+                    pass
             txNode.modeTo(1)
         # to sleep
         else:
@@ -421,7 +438,26 @@ def sensor(env,node):
     while True:
         yield env.timeout(avgSendTime)
         node.genPacket(-1,40,0)
-    
+
+# print routes and DER
+def print_data(nodes):
+    for node in nodes:
+        if node.id > 0:
+            print(str(node.id) + ':' + node.pathTo(-1))
+            print('DER = ' + str(node.arr/node.pkts))
+            print('Collision Rate = ' + str(node.coll/node.pkts))
+            print('Missing Rate = ' + str(node.miss/node.pkts))
+            print('Faded Rate = ' + str(node.fadn/node.pkts))
+            print('\n')
+
+# prepare show
+def display_graph(nodes):
+    for node in nodes:
+        for n in node.nbr:
+            plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
+        plt.scatter(node.x,node.y,color='red',zorder=5)
+        plt.annotate(node.id,(node.x, node.y),color='black',zorder=10)
+    plt.show()
 
 #
 # "main" program
@@ -431,11 +467,11 @@ def sensor(env,node):
 simtime = 1*1000*60*60
 
 # default tx param
-Ptx = 14
+PTX = 14
 SF = 7
 CR = 4
 BW = 125
-Frequency = 900000000
+FREQ = 900000000
 TTL = 15
 
 # network settings
@@ -479,28 +515,16 @@ for i in range(0,len(nodes)):
     env.process(sensor(env,nodes[i]))
 env.run(until=simtime) # start simulation
 
-# print routes and DER
-for node in nodes:
-    print(str(node.id) + ':' + node.pathTo(-1))
-    print('DER = ' + str(node.arr/node.pkts))
-    print('\n')
+display_graph(nodes)
+print_data(nodes)
 
-# prepare show
-for node in nodes:
-    for n in node.nbr:
-        plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
-
-    plt.scatter(node.x,node.y,color='red',zorder=5)
-    plt.annotate(node.id,(node.x, node.y),color='black',zorder=10)
-plt.show()
-
-# # compute energy
-# # Transmit consumption in mA from -2 to +17 dBm
-# TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
-#       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
-#       82, 85, 90,                                          # PA_BOOST/PA1: 15..17
-#       105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
-# # mA = 90    # current draw for TX = 17 dBm
-# V = 3.0     # voltage XXX
-# sent = sum(n.sent for n in nodes)
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
+# sent = sum(n.sent for n in nodes)
+# V = 3.0     # voltage XXX
+# # mA = 90    # current draw for TX = 17 dBm
+#       105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
+#       82, 85, 90,                                          # PA_BOOST/PA1: 15..17
+#       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
+# TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
+# # Transmit consumption in mA from -2 to +17 dBm
+# # compute energy
