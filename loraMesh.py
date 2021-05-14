@@ -178,20 +178,18 @@ class myNode():
         self.rxTime = 0
         self.txTime = 0
 
+        # statistics
         self.coll = 0 # packets lost due to collision
         self.miss = 0 # packets lost because rx node is not in rx mode; may overlap with the collision
-        self.sent = 0 # sent packets include relayed ones
         self.relay = 0
-        self.rec = 0 # packets successfully received without collision or miss
-
-        self.pkts = [] # generated packets exclude relayed ones
-        self.arr = [] # generated packets arriving at destination
+        self.pkts = 0 # packets generated, exclude relayed ones
+        self.arr = 0 # packets arrive at destination
 
         # local mesh table
         # self.meshTable = localMeshTable(id, )
 
         # FIFO lists
-        self.rxBuffer = [] # list of tuples (packet,appear time, collision flag)
+        self.rxBuffer = [] # list of tuples (packet,appear time,collision flag)
         self.txBuffer = []
         
         self.nbr = set() # neighbours
@@ -204,14 +202,8 @@ class myNode():
             if other[0] == packet:
                 col = self.rxBuffer[i][2]
                 mis = self.rxBuffer[i][3]
-                rec = not (col or mis)
-                
-                self.coll += col
-                self.miss += mis
-                self.rec += rec
-
                 self.rxBuffer.pop(i)
-                return rec # break loop, remove only one
+                return not (col or mis) # break loop, remove only one
         return False
                   
     # proccess packet; deep copy packet to rxBuffer
@@ -223,9 +215,9 @@ class myNode():
 
     # generate packet
     def genPacket(self,dest,plen,tp):
-        packet = myPacket(len(self.pkts),self,dest,self,plen,tp)
+        packet = myPacket(self.pkts,self,dest,self,plen,tp)
         self.txBuffer.append(packet)
-        self.pkts.append(packet)
+        self.pkts += 1
 
     # add or edit entry; return update or not
     def updateRT(self,dest,nxt,metric,seq):
@@ -243,7 +235,7 @@ class myNode():
         rt.seqDict[dest] = seq
         return True
 
-    # change status flag and add time of the last status
+    # change mode flag and update time of the last status
     def modeTo(self,mode):
         pastTime = env.now - self.modeStart
         if self.mode == 0:
@@ -252,7 +244,8 @@ class myNode():
             self.rxTime += pastTime
         elif self.mode == 2:
             self.txTime += pastTime
-            self.sent += 1
+        else:
+            raise ValueError('Mode not defined for Node ' + str(self.id))
         self.mode = mode
         self.modeStart = env.now
 
@@ -395,15 +388,15 @@ def transceiver(env,txNode):
             for i in range(len(nodes)):
                 if nodes[i].checkDelivery(packet): # side effect: packet removed from rxBuffer
                     if packet.tp == 0: # sensor data
-                        # not supposed to receive, waste
+                        # not supposed to receive, wasted
                         if txNode.rt.nextDict[packet.dest] != nodes[i].id:
                             pass
                         # arrive at next/dest
                         else:
                             if packet.dest == nodes[i].id:
-                                packet.src.arr.append(packet)
-                                if len(packet.src.arr) > len(packet.src.pkts):
-                                    raise ValueError(str(packet.src.id) + ' more arrived than generated.')
+                                packet.src.arr += 1
+                                if packet.src.arr > packet.src.pkts:
+                                    raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
                             elif packet.ttl > 0:
                                 nodes[i].relayPacket(packet)
                             else:
@@ -489,7 +482,7 @@ env.run(until=simtime) # start simulation
 # print routes and DER
 for node in nodes:
     print(str(node.id) + ':' + node.pathTo(-1))
-    print('DER = ' + str(len(node.arr)/len(node.pkts)))
+    print('DER = ' + str(node.arr/node.pkts))
     print('\n')
 
 # prepare show
