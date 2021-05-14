@@ -52,9 +52,7 @@ import simpy
 import random
 import numpy as np
 import math
-import sys
 import matplotlib.pyplot as plt
-import os
 
 # turn on/off graphics
 graphics = 0
@@ -316,34 +314,35 @@ class myPacket():
 
     # compute rssi at rx node
     def rssiAt(self,rxNode):
-        gamma = 2.08 # path loss exponent
-        d0 = 40.0 # ref. distance in m
-        var = 0 # power variance; ignored for now
-        Lpld0 = 127.41 # mean path loss at d0
-        GL = 0 # combined gain
-        # log-shadow
-        distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
-        Lpl = Lpld0 + 10*gamma*math.log10(distance/d0) + random.normalvariate(0,math.sqrt(var))     
-        return self.txpow - GL - Lpl
-        
-        # ptxw = 10**(self.txpow/10)*10**(-3) # 19 dBm = 79.43 mW; close to the upper bound of LoRa devices
-        # distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
+        if rayleigh == 0:
+            gamma = 2.08 # path loss exponent
+            d0 = 40.0 # ref. distance in m
+            var = 0 # power variance; ignored for now
+            Lpld0 = 127.41 # mean path loss at d0
+            GL = 0 # combined gain
+            # log-shadow
+            distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
+            Lpl = Lpld0 + 10*gamma*math.log10(distance/d0) + random.normalvariate(0,math.sqrt(var))     
+            return self.txpow - GL - Lpl
+        else:
+            ptxw = 10**(self.txpow/10)*10**(-3) # 19 dBm = 79.43 mW; close to the upper bound of LoRa devices
+            distance = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
 
-        # # Gaussian noise
-        # ndb = -168 + 10*math.log10(1000*self.bw) # -174+NF+10log10(BW) with NF = 6; Lorasim paper eq. [4] (AN1200.13 eqn. [1])
-        # nw = 10**(ndb/10)*10**(-3) # convert noise variance from dbm to W
-        # noise = np.random.normal(0,math.sqrt(nw))
+            # Gaussian noise
+            ndb = -168 + 10*math.log10(1000*self.bw) # -174+NF+10log10(BW) with NF = 6; Lorasim paper eq. [4] (AN1200.13 eqn. [1])
+            nw = 10**(ndb/10)*10**(-3) # convert noise variance from dbm to W
+            noise = np.random.normal(0,math.sqrt(nw))
 
-        # # Rayleigh fading
-        # wavelength = 299792458/(self.freq)
-        # gd = wavelength/((4*math.pi*distance)**2.7)
-        
-        # # received power in watts
-        # prxw = gd*ptxw*np.random.exponential(1) + noise # Nicola's eq. [3][4]
-        # prxw = max(10**(-18),prxw)
-        
-        # # received power in dbm
-        # return 10*math.log10(prxw*(10**3))
+            # Rayleigh fading
+            wavelength = 299792458/(self.freq)
+            gd = wavelength/((4*math.pi*distance)**2.7)
+            
+            # received power in watts
+            prxw = gd*ptxw*np.random.exponential(1) + noise # Nicola's eq. [3][4]
+            prxw = max(10**(-18),prxw)
+            
+            # received power in dbm
+            return 10*math.log10(prxw*(10**3))
 
 #
 # A finite state machine running on every node 
@@ -446,7 +445,7 @@ def print_data(nodes):
             print(str(node.id) + ':' + node.pathTo(-1))
             print('DER = ' + str(node.arr/node.pkts))
             print('Collision Rate = ' + str(node.coll/node.pkts))
-            print('Missing Rate = ' + str(node.miss/node.pkts))
+            print('Miss Rate = ' + str(node.miss/node.pkts))
             print('Faded Rate = ' + str(node.fadn/node.pkts))
             print('\n')
 
@@ -459,12 +458,24 @@ def display_graph(nodes):
         plt.annotate(node.id,(node.x, node.y),color='black',zorder=10)
     plt.show()
 
+# this is an array with measured values for sensitivity
+# see paper, Table 3
+sf7 = np.array([7,-126.5,-124.25,-120.75])
+sf8 = np.array([8,-127.25,-126.75,-124.0])
+sf9 = np.array([9,-131.25,-128.25,-127.5])
+sf10 = np.array([10,-132.75,-130.25,-128.75])
+sf11 = np.array([11,-134.5,-132.75,-128.75])
+sf12 = np.array([12,-133.25,-132.25,-132.25])
+
+sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
+
 #
 # "main" program
 #
 
 # simulation settings
 simtime = 1*1000*60*60
+rayleigh = 0
 
 # default tx param
 PTX = 14
@@ -481,28 +492,16 @@ slot = 1000
 n0 = 10 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
-# this is an array with measured values for sensitivity
-# see paper, Table 3
-sf7 = np.array([7,-126.5,-124.25,-120.75])
-sf8 = np.array([8,-127.25,-126.75,-124.0])
-sf9 = np.array([9,-131.25,-128.25,-127.5])
-sf10 = np.array([10,-132.75,-130.25,-128.75])
-sf11 = np.array([11,-134.5,-132.75,-128.75])
-sf12 = np.array([12,-133.25,-132.25,-132.25])
-
-sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
-
 # global stuff
 nodes = []
 env = simpy.Environment()
 
-# TODO: base station placement
+# base station placement
 bs = myNode(-1,0,0,10)
 bs.genPacket(-1,40,1)
 nodes.append(bs)
 
-# prepare graphics and add sink
-
+# end nodes placement
 # TODO: generate spatial distribution using Poisson Hard-Core Process
 locs = np.loadtxt('75.csv',delimiter=',')
 for i in range(0,locs.shape[1]):
@@ -515,8 +514,8 @@ for i in range(0,len(nodes)):
     env.process(sensor(env,nodes[i]))
 env.run(until=simtime) # start simulation
 
-display_graph(nodes)
 print_data(nodes)
+display_graph(nodes)
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
 # sent = sum(n.sent for n in nodes)
