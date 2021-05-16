@@ -469,29 +469,85 @@ sf12 = np.array([12,-133.25,-132.25,-132.25])
 
 sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
 
-#
-# "main" program
-#
-
-import exp2 as exp
+def bstxonly(env,txNode):
+    global nodes
+    txNode.modeTo(2)
+    env.timeout(random.randint(0,slot))
+    packet = txNode.txBuffer.pop(0)
+    packet.appearTime = env.now
+    sensitivity = sensi[packet.sf - 7, [125,250,500].index(packet.bw) + 1]
+    # receive packet
+    for i in range(len(nodes)):
+        if txNode.id != nodes[i].id and packet.rssiAt(nodes[i]) > sensitivity: # rssi good at receiver, add packet to rxBuffer
+            nodes[i].nbr.add(txNode)
+            col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets                    
+            mis = (nodes[i].mode != 1) # receiver not in rx mode
+            nodes[i].rxBuffer.append([packet,col,mis]) # log packet along with appear time and flags
+    yield env.timeout(packet.airtime()) # airtime
+    # complete packet has been processed by rx node; can remove it
+    for i in range(len(nodes)):
+        result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
+        # rssi good but there is col or mis
+        if result and not any(result): 
+            # sensor data
+            if packet.tp == 0:
+                # not supposed to receive, wasted
+                if txNode.rt.nextDict[packet.dest] != nodes[i].id:
+                    pass
+                # arrive at next/dest
+                else:
+                    if packet.dest == nodes[i].id:
+                        packet.src.arr += 1
+                        if packet.src.arr > packet.src.pkts:
+                            raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
+                    elif packet.ttl > 0:
+                        nodes[i].relayPacket(packet)
+                    else:
+                        pass
+            # routing beacon
+            elif packet.tp == 1:
+                # DSDV update routing table
+                update = 0 # flag needed because there can be multiple entries to update
+                for dest in txNode.rt.destSet:
+                    # return update or not; side effect: update entry
+                    update = nodes[i].updateRT(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
+                if update and packet.ttl > 0:       
+                    nodes[i].relayPacket(packet)
+                    nodes[i].rt.seqDict[nodes[i].id] += 2
+            # reserved for other packet type
+            else:
+                pass
+        # catch losing condition when node is critical
+        elif txNode.rt.nextDict[packet.dest] == nodes[i].id:
+            try:
+                packet.src.coll += result[0]
+                packet.src.miss += result[1]
+            # error when result is empty
+            except:
+                packet.src.fade += 1
+        # rssi bad (not found in rxBuffer) or coll or miss
+        else:
+            pass
+    txNode.modeTo(2)
 
 # simulation settings
-simtime = exp.simtime
-rayleigh = exp.rayleigh
-var = exp.var # dbm; noise power variance
+simtime = 4*1000*60*60
+rayleigh = 0
+var = 0 # dbm; noise power variance
 
 # default tx param
-PTX = exp.PTX
-SF = exp.SF
-CR = exp.CR
-BW = exp.BW
-FREQ = exp.FREQ
-TTL = exp.TTL
+PTX = 10
+SF = 7
+CR = 4
+BW = 125
+FREQ = 900000000
+TTL = 15
 
 # network settings
-avgSendTime = exp.avgSendTime # avg time between packets in ms
-slot = exp.slot
-p0 = exp.p0
+avgSendTime = 1000*60 # avg time between packets in ms
+slot = 1000
+n0 = 2 # assumed no. of neighbour nodes
+p0 = (1-(1/n0))**(n0-1)
 
 # global stuff
 nodes = []
@@ -502,30 +558,22 @@ bs = myNode(-1,0,0,10)
 bs.genPacket(-1,25,1)
 bs.genPacket(-1,25,1)
 nodes.append(bs)
+env.process(bstxonly(env,bs))
 
 # end nodes placement
 # TODO: generate spatial distribution using Poisson Hard-Core Process
-locs = exp.locs
+x = np.array([100])
+y = np.array([0])
+locs = np.array([x,y])
 for i in range(0,locs.shape[1]):
     node = myNode(i,locs[0,i-1],locs[1,i-1],1)
     nodes.append(node)
 
 # run nodes
-for i in range(0,len(nodes)):
+for i in range(1,len(nodes)):
     env.process(transceiver(env,nodes[i]))
     env.process(sensor(env,nodes[i]))
 env.run(until=simtime) # start simulation
 
 print_data(nodes)
 display_graph(nodes)
-
-# energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
-# sent = sum(n.sent for n in nodes)
-# V = 3.0     # voltage XXX
-# # mA = 90    # current draw for TX = 17 dBm
-#       105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
-#       82, 85, 90,                                          # PA_BOOST/PA1: 15..17
-#       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
-# TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
-# # Transmit consumption in mA from -2 to +17 dBm
-# # compute energy
