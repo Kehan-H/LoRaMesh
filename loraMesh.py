@@ -473,7 +473,7 @@ sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
 # "main" program
 #
 
-import exp2 as exp
+import exp3 as exp
 
 # simulation settings
 simtime = exp.simtime
