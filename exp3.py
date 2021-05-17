@@ -3,7 +3,7 @@
 import numpy as np
 
 # simulation settings
-simtime = 1*1000*60*60
+simtime = 24*1000*60*60
 rayleigh = 0
 var = 1 # dbm; noise power variance
 
