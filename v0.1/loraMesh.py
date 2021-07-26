@@ -399,10 +399,12 @@ sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
 # "main" program
 #
 
-import exp1 as exp
+import exp3 as exp
 
 # simulation settings
 simtime = exp.simtime
+rayleigh = exp.rayleigh
+var = exp.var # dbm; noise power variance
 
 # default tx param
 PTX = exp.PTX
@@ -416,24 +418,22 @@ TTL = exp.TTL
 avgSendTime = exp.avgSendTime # avg time between packets in ms
 slot = exp.slot
 p0 = exp.p0
-locsN = exp.locsN
-locsB = exp.locsB
 
 # global stuff
 nodes = []
 env = simpy.Environment()
 
 # base station placement
-bs = myNode(-1,locsB[0],locsB[1],10)
+bs = myNode(-1,0,0,10)
 bs.genPacket(-1,25,1)
 bs.genPacket(-1,25,1)
 nodes.append(bs)
 
 # end nodes placement
 # TODO: generate spatial distribution using Poisson Hard-Core Process
-
-for i in range(0,locsN.shape[0]):
-    node = myNode(i+1,locsN[i,0],locsN[i,1],1)
+locs = exp.locs
+for i in range(0,locs.shape[1]):
+    node = myNode(i,locs[0,i-1],locs[1,i-1],1)
     nodes.append(node)
 
 # run nodes

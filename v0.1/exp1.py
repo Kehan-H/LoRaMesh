@@ -1,10 +1,14 @@
+## 2+1, linear, noise
+
 import numpy as np
 
 # simulation settings
-simtime = 5*1000*60*60
+simtime = 4*1000*60*60
+rayleigh = 0
+var = 1 # dbm; noise power variance
 
 # default tx param
-PTX = 8
+PTX = 10
 SF = 7
 CR = 4
 BW = 125
@@ -14,12 +18,11 @@ TTL = 15
 # network settings
 avgSendTime = 1000*60 # avg time between packets in ms
 slot = 1000
-n0 = 10 # assumed no. of neighbour nodes
+n0 = 2 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # end nodes placement
 # TODO: generate spatial distribution using Poisson Hard-Core Process
-locsN = np.loadtxt('600x800.csv',delimiter=',')
-
-# basestation
-locsB = np.array([397.188492418693,226.186250701973])
+x = np.array([100,200])
+y = np.array([0,0])
+locs = np.array([x,y])
