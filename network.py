@@ -104,8 +104,8 @@ def sfCollision(p1,p2):
 def powerCollision(p1,p2,rxNode):
     powerThreshold = 6 # dB
     # print("pwr: node {0.nodeid} {0.rssi:3.2f} dBm node {1.nodeid} {1.rssi:3.2f} dBm; diff {2:3.2f} dBm".format(p1, p2, round(p1.rssi - p2.rssi,2)))
-    rssi_p1 = p1.rssiAt(rxNode)
-    rssi_p2 = p2.rssiAt(rxNode)
+    rssi_p1 = p1.rssiAt[rxNode]
+    rssi_p2 = p2.rssiAt[rxNode]
     if abs(rssi_p1 - rssi_p2) < powerThreshold:
         # print("collision pwr both node {} and node {}".format(p1.nodeid, p2.nodeid))
         # packets are too close to each other, both collide
@@ -173,7 +173,7 @@ class myNode():
         self.rxBuffer = [] # list of tuples in the form (packet,collision flag,miss flag)
         self.txBuffer = []
         
-        self.nbr = set() # neighbours
+        self.nbr = set() # network neighbours in rt
         self.rt = self.myRT(self) # routing table
     
     # remove packet from rxBuffer; return [col,mis]
@@ -224,7 +224,7 @@ class myNode():
         elif self.mode == 2:
             self.txTime += pastTime
             for entry in self.rxBuffer:
-                entry[2] = 1
+                entry[2] = 1 # packets not fully received are missed
         else:
             raise ValueError('Mode not defined for Node ' + str(self.id))
         self.mode = mode
@@ -278,6 +278,21 @@ class myPacket():
         self.ttl = TTL # time to live (hops)
 
         self.appearTime = None
+        self.rssiAt = {} # rssi at rx nodes
+    
+    # channel estimation - compute rssi at rx nodes
+    # call this function when packet is transmitted
+    def chanEst(self,nodes):
+        for rxNode in (node for node in nodes if node != self.txNode):
+            gamma = 2.03 # path loss exponent
+            sigma = 7.21
+            d0 = 1.0 # ref. distance in m
+            PLd0 = 94.40 # mean path loss at d0
+            GL = 0 # combined gain
+            # log-shadow
+            dist = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
+            PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.normalvariate(0,sigma)     
+            self.rssiAt[rxNode] = self.txpow + GL - PL
 
     def airtime(self):
         sf = self.sf
@@ -293,18 +308,6 @@ class myPacket():
         payloadSymbNB = 8 + max(math.ceil((8.0*plen-4.0*sf+28+16-20*H)/(4.0*(sf-2*DE)))*(cr+4),0)
         Tpayload = payloadSymbNB * Tsym
         return Tpream + Tpayload
-
-    # compute rssi at rx node
-    def rssiAt(self,rxNode):
-        gamma = 2.03 # path loss exponent
-        sigma = 7.21
-        d0 = 1.0 # ref. distance in m
-        PLd0 = 94.40 # mean path loss at d0
-        GL = 0 # combined gain
-        # log-shadow
-        dist = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
-        PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.normalvariate(0,sigma)     
-        return self.txpow + GL - PL
 
 #
 # A finite state machine running on every node 
@@ -332,6 +335,7 @@ def transceiver(env,txNode):
             # trasmit packet
             packet = txNode.txBuffer.pop(0)
             packet.appearTime = env.now
+            packet.chanEst(nodes)
             # hold packet when no route
             if packet.type == 0 and (packet.dest not in txNode.rt.destSet):
                 txNode.txBuffer.append(packet)
@@ -341,7 +345,11 @@ def transceiver(env,txNode):
             sensitivity = sensi[packet.sf - 7, [125,250,500].index(packet.bw) + 1]
             # receive packet
             for i in range(len(nodes)):
-                if txNode.id != nodes[i].id and packet.rssiAt(nodes[i]) > sensitivity: # rssi good at receiver, add packet to rxBuffer
+                try:
+                    dR = packet.rssiAt[nodes[i]] - sensitivity # error when txNode.id == nodes[i].id
+                except:
+                    continue
+                if dR >= 0: # rssi good at receiver, add packet to rxBuffer
                     col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets                    
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
                     nodes[i].rxBuffer.append([packet,col,mis]) # log packet along with appear time and flags
@@ -373,7 +381,7 @@ def transceiver(env,txNode):
                         nodes[i].nbr.add(txNode)
                         for dest in txNode.rt.destSet:
                             # return update or not; side effect: update entry
-                            update = nodes[i].updateRT(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
+                            update = update + nodes[i].updateRT(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
                         if update and packet.ttl > 0:       
                             nodes[i].relayPacket(packet)
                             nodes[i].rt.seqDict[nodes[i].id] += 2
