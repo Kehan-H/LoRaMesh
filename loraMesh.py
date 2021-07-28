@@ -30,6 +30,7 @@ locsB = np.array([397.188492418693,226.186250701973])
 bs = nw.myNode(-1,locsB[0],locsB[1],10)
 bs.genPacket(-1,25,1)
 bs.genPacket(-1,25,1)
+bs.genPacket(-1,25,1)
 nw.nodes.append(bs)
 
 # end nodes initialization

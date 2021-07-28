@@ -173,7 +173,6 @@ class myNode():
         self.rxBuffer = [] # list of tuples in the form (packet,collision flag,miss flag)
         self.txBuffer = []
         
-        self.nbr = set() # network neighbours in rt
         self.rt = self.myRT(self) # routing table
     
     # remove packet from rxBuffer; return [col,mis]
@@ -197,22 +196,6 @@ class myNode():
         packet = myPacket(self.pkts,self,dest,self,plen,type)
         self.txBuffer.append(packet)
         self.pkts += 1
-
-    # add or edit entry; return update or not
-    def updateRT(self,dest,nxt,metric,seq):
-        rt = self.rt
-        if dest in rt.destSet:
-            if seq > rt.seqDict[dest]:
-                pass
-            elif seq == rt.seqDict[dest] and metric < rt.metricDict[dest]:
-                pass
-            else:
-                return False
-        rt.destSet.add(dest)
-        rt.nextDict[dest] = nxt
-        rt.metricDict[dest] = metric
-        rt.seqDict[dest] = seq
-        return True
 
     # change mode flag and update time of the last status
     def modeTo(self,mode):
@@ -249,6 +232,13 @@ class myNode():
             self.nextDict = {node.id:node.id}
             self.metricDict = {node.id:0} # hops
             self.seqDict = {node.id:0}
+
+        def getNbr(self):
+            nbr = set()
+            for node in nodes:
+                if node.id in self.nextDict.values():
+                    nbr.add(node)
+            return nbr
 
 #
 # this function creates a packet
@@ -319,17 +309,9 @@ def transceiver(env,txNode):
     while True:
         # to receive
         if txNode.mode == 1:
-            # carrier sense
-            if (not txNode.rxBuffer) and txNode.txBuffer:
-                # transmit with p0 possibility
-                if (random.random() <= p0):
-                    txNode.modeTo(2) # mode to tx
-                else:
-                    # >p0, wait till next slot
-                    yield env.timeout(slot)
-            else:
-                # refresh when channel busy or has nothing to send
-                yield env.timeout(100)
+            do = pr.csma(txNode)
+            txNode.modeTo(do[0])
+            yield env.timeout(do[1])
         # to transmit
         elif txNode.mode == 2:
             # trasmit packet
@@ -349,7 +331,7 @@ def transceiver(env,txNode):
                     dR = packet.rssiAt[nodes[i]] - sensitivity # error when txNode.id == nodes[i].id
                 except:
                     continue
-                if dR >= 0: # rssi good at receiver, add packet to rxBuffer
+                if dR > 0: # rssi good at receiver, add packet to rxBuffer
                     col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets                    
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
                     nodes[i].rxBuffer.append([packet,col,mis]) # log packet along with appear time and flags
@@ -358,36 +340,8 @@ def transceiver(env,txNode):
             for i in range(len(nodes)):
                 result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
                 # rssi good and no col or mis
-                if result and not any(result): 
-                    # sensor data
-                    if packet.type == 0:
-                        # not supposed to receive, wasted
-                        if txNode.rt.nextDict[packet.dest] != nodes[i].id:
-                            pass
-                        # arrive at next/dest
-                        else:
-                            if packet.dest == nodes[i].id:
-                                packet.src.arr += 1
-                                if packet.src.arr > packet.src.pkts:
-                                    raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
-                            elif packet.ttl > 0:
-                                nodes[i].relayPacket(packet)
-                            else:
-                                pass
-                    # routing beacon
-                    elif packet.type == 1:
-                        # DSDV update routing table
-                        update = 0 # flag needed because there can be multiple entries to update
-                        nodes[i].nbr.add(txNode)
-                        for dest in txNode.rt.destSet:
-                            # return update or not; side effect: update entry
-                            update += nodes[i].updateRT(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
-                        if update and packet.ttl > 0:       
-                            nodes[i].relayPacket(packet)
-                            nodes[i].rt.seqDict[nodes[i].id] += 2
-                    # reserved for other packet type
-                    else:
-                        pass
+                if result and not any(result):
+                    pr.dsdv(packet,txNode,nodes[i],dR)
                 # catch losing condition when node is critical
                 elif txNode.rt.nextDict[packet.dest] == nodes[i].id:
                     try:
@@ -426,7 +380,8 @@ def print_data(nodes):
 # prepare show
 def display_graph(nodes):
     for node in nodes:
-        for n in node.nbr:
+        nbr = node.rt.getNbr()
+        for n in nbr:
             plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
         plt.scatter(node.x,node.y,color='red',zorder=5)
         plt.annotate(node.id,(node.x, node.y),color='black',zorder=10)

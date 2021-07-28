@@ -8,31 +8,31 @@ import simpy
 n0 = 10 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
-RM = 5 # rssi margin to ensure reliable routing result
+RM = 2 # rssi margin to ensure reliable routing result
 
 #
 # MAC protocols (rx <-> tx)
 # 
-# Outputs:
+# outputs:
 #   nxMode - next mode of transceiver
-#   side effect: env.timeout()
+#   dt - time for env.timeout()
 #
 
 # p-csma
-def csma(env,txNode):
+def csma(txNode):
+    nxMode = 1
+    dt = 0
     if (not txNode.rxBuffer) and txNode.txBuffer:
         # transmit with p0 possibility
         if (random.random() <= p0):
             nxMode = 2 # mode to tx
         else:
             # >p0, wait till next slot
-            yield env.timeout(1000)
-            nxMode = 1
+            dt = 1000
     else:
         # refresh when channel busy or has nothing to send
-        yield env.timeout(100)
-        nxMode = 1
-    return nxMode
+        dt = 100
+    return nxMode,dt
 
 #
 # routing algorithms
@@ -45,6 +45,7 @@ def dsdv(packet,txNode,rxNode,dR):
         next = txNode.id
         metric = txNode.rt.metricDict[dest] + 1
         seq = txNode.rt.seqDict[dest]
+        # existing dest
         if dest in rxNode.rt.destSet:
             if seq > rxNode.rt.seqDict[dest]:
                 pass
@@ -52,12 +53,13 @@ def dsdv(packet,txNode,rxNode,dR):
                 pass
             else:
                 return False
-        # for direct link, if dR does not exceed rssi margin, reject link to ensure link quality
-        if metric == 1:
-            if dR < RM:
+        # new dest
+        else:
+            # for direct link, if dR does not exceed rssi margin, reject link to ensure link quality
+            if metric == 1 and dR < RM:
                 return False
             else:
-                rxNode.nbr.add(txNode)
+                pass
         rxNode.rt.destSet.add(dest)
         rxNode.rt.nextDict[dest] = next
         rxNode.rt.metricDict[dest] = metric
@@ -90,6 +92,7 @@ def dsdv(packet,txNode,rxNode,dR):
         if update and packet.ttl > 0:
             rxNode.relayPacket(packet)
             rxNode.rt.seqDict[rxNode.id] += 2
+    
     # reserved for other packet type
     else:
         pass
