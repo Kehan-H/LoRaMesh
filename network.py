@@ -14,12 +14,12 @@ import protocol as pr
 #
 
 # default tx param
-PTX = 8
+PTX = 5
 SF = 7
 CR = 4
 BW = 125
 FREQ = 900000000
-TTL = 15
+TTL = 10
 
 # network settings
 avgSendTime = 1000*60 # avg time between packets in ms
@@ -381,7 +381,7 @@ def transceiver(env,txNode):
                         nodes[i].nbr.add(txNode)
                         for dest in txNode.rt.destSet:
                             # return update or not; side effect: update entry
-                            update = update + nodes[i].updateRT(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
+                            update += nodes[i].updateRT(dest,txNode.id,txNode.rt.metricDict[dest]+1,txNode.rt.seqDict[dest])
                         if update and packet.ttl > 0:       
                             nodes[i].relayPacket(packet)
                             nodes[i].rt.seqDict[nodes[i].id] += 2
@@ -415,9 +415,12 @@ def print_data(nodes):
         if node.id >= 0:
             print(str(node.id) + ':' + node.pathTo(-1))
             print('DER = ' + str(node.arr/node.pkts))
-            print('Collision Rate = ' + str(node.coll/(node.pkts-node.fade)))
-            print('Miss Rate = ' + str(node.miss/(node.pkts-node.fade)))
             print('Faded Rate = ' + str(node.fade/node.pkts))
+            try:
+                print('Collision Rate = ' + str(node.coll/(node.pkts-node.fade)))
+                print('Miss Rate = ' + str(node.miss/(node.pkts-node.fade)))
+            except:
+                pass
             print('\n')
 
 # prepare show

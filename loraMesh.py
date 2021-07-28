@@ -12,12 +12,12 @@ import numpy as np
 simtime = 5*1000*60*60
 
 # override default tx param
-nw.PTX = 8
+nw.PTX = 5
 nw.SF = 7
 nw.CR = 4
 nw.BW = 125
 nw.FREQ = 900000000
-nw.TTL = 15
+nw.TTL = 10
 
 # network settings
 nw.avgSendTime = 1000*60 # avg time between packets in ms
