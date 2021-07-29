@@ -9,7 +9,7 @@ import numpy as np
 #
 
 # simulation settings
-simtime = 10*1000*60*60
+simtime = 5*1000*60*60
 
 # override default tx param
 nw.PTX = 8
@@ -22,8 +22,6 @@ nw.TTL = 10
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
 bs = nw.myNode(-1,locsB[0],locsB[1],10)
-bs.genPacket(-1,25,1)
-bs.genPacket(-1,25,1)
 nw.nodes.append(bs)
 
 # end nodes initialization
@@ -35,7 +33,6 @@ for i in range(0,locsN.shape[0]):
 # run nodes
 for i in range(0,len(nw.nodes)):
     nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
-    nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
 nw.print_data(nw.nodes)

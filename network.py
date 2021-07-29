@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import simpy
 import random
 import numpy as np
@@ -20,12 +17,6 @@ CR = 4
 BW = 125
 FREQ = 900000000
 TTL = 10
-
-# network settings
-avgSendTime = 1000*60 # avg time between packets in ms
-slot = 1000
-n0 = 10 # assumed no. of neighbour nodes
-p0 = (1-(1/n0))**(n0-1)
 
 # this is an array with measured values for sensitivity
 # see paper, Table 3
@@ -253,7 +244,7 @@ class myPacket():
         self.plen = plen
         
         # packet type identifier:
-        # 0 - sensor data
+        # 0 - data
         # 1 - routing beacon
         # 2 - 
         self.type = type
@@ -304,13 +295,12 @@ class myPacket():
 #
 def transceiver(env,txNode):
     global nodes
-    env.timeout(random.randint(0,slot))
     while True:
         # to receive
         if txNode.mode == 1:
-            do = pr.csma(txNode)
-            txNode.modeTo(do[0])
-            yield env.timeout(do[1])
+            act = pr.csma(txNode)
+            txNode.modeTo(act[0])
+            yield env.timeout(act[1])
         # to transmit
         elif txNode.mode == 2:
             # trasmit packet
@@ -353,17 +343,19 @@ def transceiver(env,txNode):
                 else:
                     pass
             txNode.modeTo(1)
+            yield env.timeout(act[2])
         # to sleep
         else:
             pass
 
 #
 # spontaneous data packet generator
+# call this function when packet generation is not controlled by MAC protocol
 #
-def genData(env,node):
+def generator(env,node):
     while True:
-        yield env.timeout(avgSendTime)
-        node.genPacket(-1,25,0)
+        dt = pr.periGen(node)
+        yield env.timeout(dt)
 
 # print routes and DER
 def print_data(nodes):
