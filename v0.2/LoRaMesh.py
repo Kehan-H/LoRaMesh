@@ -12,7 +12,7 @@ import numpy as np
 simtime = 5*1000*60*60
 
 # override default tx param
-nw.PTX = 5
+nw.PTX = 8
 nw.SF = 7
 nw.CR = 4
 nw.BW = 125
@@ -42,7 +42,7 @@ for i in range(0,locsN.shape[0]):
 # run nodes
 for i in range(0,len(nw.nodes)):
     nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
-    nw.env.process(nw.sensor(nw.env,nw.nodes[i]))
+    nw.env.process(nw.genData(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
 nw.print_data(nw.nodes)
