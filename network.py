@@ -294,6 +294,7 @@ class myPacket():
 # A finite state machine running on every node 
 #
 def transceiver(env,txNode):
+    yield env.timeout(1000)
     global nodes
     while True:
         # to receive
