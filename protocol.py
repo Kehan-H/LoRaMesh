@@ -8,7 +8,7 @@ n0 = 10 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # rssi margin to ensure reliable routing result
-RM = 0
+RM = 15
 
 # avg time between generated data packets in ms
 avgGenTime = 1000*60
@@ -69,24 +69,23 @@ def query(txNode):
 # DSDV
 def dsdv(packet,txNode,rxNode,dR):
     # add or edit entry in rt; return update or not
-    def updateRT(dest,txNode,rxNode,dR):
-        # if dR does not exceed rssi margin, reject update to ensure link quality
-        if dR < RM:
-            return False
+    def updateRT(dest,txNode,rxNode,dR):        
         next = txNode.id
         metric = txNode.rt.metricDict[dest] + 1
         seq = txNode.rt.seqDict[dest]
         # existing dest
         if dest in rxNode.rt.destSet:
-            if seq > rxNode.rt.seqDict[dest]:
-                pass
-            elif seq == rxNode.rt.seqDict[dest] and metric < rxNode.rt.metricDict[dest]:
+            if seq >= rxNode.rt.seqDict[dest] and metric < rxNode.rt.metricDict[dest]:
                 pass
             else:
                 return False
+        # new dest
         else:
-            pass
-        rxNode.rt.destSet.add(dest)
+            # for direct link, if dR does not exceed rssi margin, reject link to ensure link quality
+            if dR < RM and metric == 1:
+                return False
+            else:
+                rxNode.rt.destSet.add(dest)
         rxNode.rt.nextDict[dest] = next
         rxNode.rt.metricDict[dest] = metric
         rxNode.rt.seqDict[dest] = seq
@@ -130,12 +129,13 @@ def dsdv(packet,txNode,rxNode,dR):
 #   dt - time for timeout before the next generation
 #
 
+# periodic generator
 def periGen(node):
     dt = 100
     # BS
     if node.id < 0:
         node.genPacket(-1,plenB,1)
-        dt = 5*60*1000
+        dt = 10*60*1000
     # end devices
     elif node.id > 0:
         node.genPacket(-1,plenD,0)

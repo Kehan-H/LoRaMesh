@@ -265,10 +265,10 @@ class myPacket():
     # call this function when packet is transmitted
     def chanEst(self,nodes):
         for rxNode in (node for node in nodes if node != self.txNode):
-            gamma = 2.03 # path loss exponent
-            sigma = 7.21
-            d0 = 1.0 # ref. distance in m
-            PLd0 = 94.40 # mean path loss at d0
+            gamma = 2.75 # path loss exponent
+            sigma = 11.25
+            d0 = 1 # ref. distance in m
+            PLd0 = 74.85 # mean path loss at d0
             GL = 0 # combined gain
             # log-shadow
             dist = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)

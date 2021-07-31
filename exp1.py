@@ -9,7 +9,7 @@ import numpy as np
 #
 
 # simulation settings
-simtime = 10*1000*60*60
+simtime = 5*1000*60*60
 
 # override default tx param
 nw.PTX = 8
@@ -33,7 +33,8 @@ for i in range(0,locsN.shape[0]):
     nw.nodes.append(node)
 
 # run nodes
-for i in range(0,len(nw.nodes)):
+nw.env.process(nw.transceiver(nw.env,nw.nodes[0]))
+for i in range(1,len(nw.nodes)):
     nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
     nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
