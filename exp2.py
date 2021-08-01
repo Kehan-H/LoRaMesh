@@ -21,7 +21,7 @@ nw.TTL = 10
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
-bs = nw.myNode(-1,locsB[0],locsB[1],10)
+bs = nw.myNode(0,locsB[0],locsB[1],10)
 nw.nodes.append(bs)
 
 # end nodes initialization

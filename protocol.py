@@ -8,7 +8,7 @@ n0 = 10 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # rssi margin to ensure reliable routing result
-RM = 15
+RM = 20
 
 # avg time between generated data packets in ms
 avgGenTime = 1000*60
@@ -22,8 +22,8 @@ plenD = 15
 # 
 # outputs:
 #   nxMode - next mode of transceiver
-#   dt1 - time for timeout before the next mode 
-#   dt2 - time for timeout after the next mode
+#   dt1 - time for staying in rx mode before the next mode 
+#   dt2 - time before the next protocol loop after returning to rx mode from other mode 
 #
 
 # p-csma
@@ -31,36 +31,53 @@ def csma(txNode):
     nxMode = 1
     dt1 = 0
     dt2 = 0
-    if (not txNode.rxBuffer) and txNode.txBuffer:
-        # transmit with p0 possibility
-        if (random.random() <= p0):
-            nxMode = 2 # mode to tx
+    if txNode.txBuffer:
+        packet = txNode.txBuffer[0]
+        # hold packet when channel is busy or no route for non-beacon packet
+        if txNode.rxBuffer or (packet.type != 1 and (packet.dest not in txNode.rt.destSet)):
+            dt1 = 500
         else:
-            # >p0, wait till next slot
-            dt1 = 1000
+            # transmit with p0 possibility
+            if (random.random() <= p0):
+                nxMode = 2 # mode to tx
+            else:
+                # >p0, wait till next slot
+                dt1 = 1000
     else:
-        # refresh when channel busy or has nothing to send
+        # has nothing to send
         dt1 = 500
     return nxMode,dt1,dt2
 
-# query-based
-def query(txNode):
-    nxMode = 1
-    dt1 = 0
-    dt2 = 0
-    # BS
-    if txNode.id < 0:
-        if len(txNode.rt.destSet) <= 1:
-            nxMode = 1
-            txNode.genPacket(-1,25,1)
-            dt2 = 60*1000
-    # end devices
-    elif txNode.id > 0:
-        pass
-    # undefined device id == 0 
-    else:
-        raise ValueError('invalid node id')
-    return nxMode,dt1,dt2
+# # query-based
+# def query(txNode):
+#     nxMode = 1
+#     dt1 = 0
+#     dt2 = 0
+#     # BS
+#     if txNode.id == 0:
+#         if len(txNode.rt.destSet) <= 1:
+#             nxMode = 1
+#             txNode.genPacket(0,25,1)
+#             dt2 = 60*1000
+#         else:
+#             # txBuffer is empty. can start a new round of query
+#             if len(txNode.txBuffer) == 0:
+#                 for id in txNode.rt.destSet:
+#                     if id != 
+#                 nxMode = 2
+#                 txNode.genPacket(0,25,2)
+#                 dt1 = 
+#             # last round of query not finished
+#             else:
+
+
+#     # end devices
+#     elif txNode.id > 0:
+#         pass
+#     # undefined device id == 0 
+#     else:
+#         raise ValueError('undefined node id')
+#     return nxMode,dt1,dt2
 
 #
 # routing algorithms (packet processing after scccessfully decoded)
@@ -133,14 +150,13 @@ def dsdv(packet,txNode,rxNode,dR):
 def periGen(node):
     dt = 100
     # BS
-    if node.id < 0:
-        node.genPacket(-1,plenB,1)
+    if node.id == 0:
+        node.genPacket(0,plenB,1)
         dt = 10*60*1000
     # end devices
     elif node.id > 0:
-        node.genPacket(-1,plenD,0)
+        node.genPacket(0,plenD,0)
         dt = avgGenTime
-    # undefined device id == 0 
     else:
-        raise ValueError('invalid node id')
+        raise ValueError('undefined node id')
     return dt

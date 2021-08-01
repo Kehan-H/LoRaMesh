@@ -219,10 +219,14 @@ class myNode():
     # this function creates a routing table (associated with a node)
     class myRT():
         def __init__(self,node):
+            # dsdv table
             self.destSet ={node.id}
             self.nextDict = {node.id:node.id}
             self.metricDict = {node.id:0} # hops
             self.seqDict = {node.id:0}
+            
+            # query-based table
+            self.timeout = {node.id:0}
 
         def getNbr(self):
             nbr = set()
@@ -246,7 +250,7 @@ class myPacket():
         # packet type identifier:
         # 0 - data
         # 1 - routing beacon
-        # 2 - 
+        # 2 - query
         self.type = type
 
         # default RF settings
@@ -272,7 +276,7 @@ class myPacket():
             GL = 0 # combined gain
             # log-shadow
             dist = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
-            PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.normalvariate(0,sigma)     
+            PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.gauss(0,sigma)     
             self.rssiAt[rxNode] = self.txpow + GL - PL
 
     def airtime(self):
@@ -304,16 +308,10 @@ def transceiver(env,txNode):
             yield env.timeout(act[1])
         # to transmit
         elif txNode.mode == 2:
-            # trasmit packet
+            # transmit packet
             packet = txNode.txBuffer.pop(0)
             packet.appearTime = env.now
             packet.chanEst(nodes)
-            # hold packet when no route
-            if packet.type == 0 and (packet.dest not in txNode.rt.destSet):
-                txNode.txBuffer.append(packet)
-                yield env.timeout(10)
-                txNode.modeTo(1)
-                continue
             sensitivity = sensi[packet.sf - 7, [125,250,500].index(packet.bw) + 1]
             # receive packet
             for i in range(len(nodes)):
@@ -362,7 +360,7 @@ def generator(env,node):
 def print_data(nodes):
     for node in nodes:
         if node.id >= 0:
-            print(str(node.id) + ':' + node.pathTo(-1))
+            print(str(node.id) + ':' + node.pathTo(0))
             print('DER = ' + str(node.arr/node.pkts))
             print('Faded Rate = ' + str(node.fade/node.pkts))
             try:
