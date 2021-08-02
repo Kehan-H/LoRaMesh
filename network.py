@@ -2,7 +2,6 @@ import simpy
 import random
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 
 import protocol as pr
 
@@ -298,12 +297,11 @@ class myPacket():
 # A finite state machine running on every node 
 #
 def transceiver(env,txNode):
-    yield env.timeout(1000)
     global nodes
     while True:
         # to receive
         if txNode.mode == 1:
-            act = pr.csma(txNode)
+            act = pr.csma(txNode,env.now)
             txNode.modeTo(act[0])
             yield env.timeout(act[1])
         # to transmit
@@ -349,33 +347,9 @@ def transceiver(env,txNode):
 
 #
 # spontaneous data packet generator
-# call this function when packet generation is not controlled by MAC protocol
+# use this function when packet generation is NOT controlled by MAC protocol
 #
 def generator(env,node):
     while True:
-        dt = pr.periGen(node)
+        dt = pr.expoGen(node)
         yield env.timeout(dt)
-
-# print routes and DER
-def print_data(nodes):
-    for node in nodes:
-        if node.id >= 0:
-            print(str(node.id) + ':' + node.pathTo(0))
-            print('DER = ' + str(node.arr/node.pkts))
-            print('Faded Rate = ' + str(node.fade/node.pkts))
-            try:
-                print('Collision Rate = ' + str(node.coll/(node.pkts-node.fade)))
-                print('Miss Rate = ' + str(node.miss/(node.pkts-node.fade)))
-            except:
-                pass
-            print('\n')
-
-# prepare show
-def display_graph(nodes):
-    for node in nodes:
-        nbr = node.rt.getNbr()
-        for n in nbr:
-            plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
-        plt.scatter(node.x,node.y,color='red',zorder=5)
-        plt.annotate(node.id,(node.x, node.y),color='black',zorder=10)
-    plt.show()

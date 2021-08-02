@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import network as nw
+import random
 import numpy as np
+
+import network as nw
+import reporting as rp
 
 #
 # "main" program
@@ -10,9 +13,10 @@ import numpy as np
 
 # simulation settings
 simtime = 5*1000*60*60
+random.seed(15)
 
 # override default tx param
-nw.PTX = 8
+nw.PTX = 14
 nw.SF = 7
 nw.CR = 4
 nw.BW = 125
@@ -40,8 +44,8 @@ for i in range(1,len(nw.nodes)):
     nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
-nw.print_data(nw.nodes)
-nw.display_graph(nw.nodes)
+rp.print_data(nw.nodes)
+rp.display_graph(nw.nodes)
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
 # sent = sum(n.sent for n in nodes)

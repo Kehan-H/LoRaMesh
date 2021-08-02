@@ -4,11 +4,11 @@ import random
 # CONSTANTS
 #
 
-n0 = 10 # assumed no. of neighbour nodes
+n0 = 5 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # rssi margin to ensure reliable routing result
-RM = 20
+RM = 22.5
 
 # avg time between generated data packets in ms
 avgGenTime = 1000*60
@@ -26,11 +26,17 @@ plenD = 15
 #   dt2 - time before the next protocol loop after returning to rx mode from other mode 
 #
 
-# p-csma
-def csma(txNode):
+# csma
+def csma(txNode,t0):
     nxMode = 1
     dt1 = 0
     dt2 = 0
+    # initialize randomness to first time frame
+    if t0 == 0:
+        dt1 = random.randint(0,5000)
+        print(dt1)
+        return nxMode,dt1,dt2
+    # p-csma
     if txNode.txBuffer:
         packet = txNode.txBuffer[0]
         # hold packet when channel is busy or no route for non-beacon packet
@@ -42,7 +48,7 @@ def csma(txNode):
                 nxMode = 2 # mode to tx
             else:
                 # >p0, wait till next slot
-                dt1 = 1000
+                dt1 = 500
     else:
         # has nothing to send
         dt1 = 500
@@ -148,7 +154,6 @@ def dsdv(packet,txNode,rxNode,dR):
 
 # periodic generator
 def periGen(node):
-    dt = 100
     # BS
     if node.id == 0:
         node.genPacket(0,plenB,1)
@@ -157,6 +162,20 @@ def periGen(node):
     elif node.id > 0:
         node.genPacket(0,plenD,0)
         dt = avgGenTime
+    else:
+        raise ValueError('undefined node id')
+    return dt
+
+# exponential generator for end devices
+def expoGen(node):
+    # BS
+    if node.id == 0:
+        node.genPacket(0,plenB,1)
+        dt = 10*60*1000
+    # end devices
+    elif node.id > 0:
+        node.genPacket(0,plenD,0)
+        dt = random.expovariate(1.0/avgGenTime)
     else:
         raise ValueError('undefined node id')
     return dt
