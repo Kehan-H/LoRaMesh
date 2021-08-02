@@ -138,11 +138,10 @@ def timingCollision(p1,p2):
 # this function creates a node
 #
 class myNode():
-    def __init__(self,id,x,y,h):
+    def __init__(self,id,x,y):
         self.id = id # negative for base station
         self.x = x
         self.y = y
-        self.h = h # current not used
 
         self.mode = 1 # 0-sleep; 1-rx; 2-tx
         self.modeStart = 0 # start time of the current mode
@@ -226,6 +225,7 @@ class myNode():
             
             # query-based table
             self.timeout = {node.id:0}
+            self.rxFlag = False
 
         def getNbr(self):
             nbr = set()

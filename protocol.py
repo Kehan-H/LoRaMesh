@@ -13,9 +13,10 @@ RM = 22.5
 # avg time between generated data packets in ms
 avgGenTime = 1000*60
 
-# default packet length of beacon and data
-plenB = 20
-plenD = 15
+# default packet length
+plenB = 20 # beacon
+plenD = 15 # data
+plenQ = 10 # query
 
 #
 # MAC protocols (rx -> tx)
@@ -69,12 +70,13 @@ def csma(txNode,t0):
 #             # txBuffer is empty. can start a new round of query
 #             if len(txNode.txBuffer) == 0:
 #                 for id in txNode.rt.destSet:
-#                     if id != 
-#                 nxMode = 2
-#                 txNode.genPacket(0,25,2)
-#                 dt1 = 
-#             # last round of query not finished
+#                     if id != txNode.id:
+#                         txNode.genPacket(0,plenQ,2)
+#             # query not finished
 #             else:
+#                 pass
+#             nxMode = 2
+#             dt1 = 
 
 
 #     # end devices
@@ -91,29 +93,6 @@ def csma(txNode,t0):
 
 # DSDV
 def dsdv(packet,txNode,rxNode,dR):
-    # add or edit entry in rt; return update or not
-    def updateRT(dest,txNode,rxNode,dR):        
-        next = txNode.id
-        metric = txNode.rt.metricDict[dest] + 1
-        seq = txNode.rt.seqDict[dest]
-        # existing dest
-        if dest in rxNode.rt.destSet:
-            if seq >= rxNode.rt.seqDict[dest] and metric < rxNode.rt.metricDict[dest]:
-                pass
-            else:
-                return False
-        # new dest
-        else:
-            # for direct link, if dR does not exceed rssi margin, reject link to ensure link quality
-            if dR < RM and metric == 1:
-                return False
-            else:
-                rxNode.rt.destSet.add(dest)
-        rxNode.rt.nextDict[dest] = next
-        rxNode.rt.metricDict[dest] = metric
-        rxNode.rt.seqDict[dest] = seq
-        return True
-
     # data packets
     if packet.type == 0:
         # not supposed to receive, wasted
@@ -134,9 +113,25 @@ def dsdv(packet,txNode,rxNode,dR):
     elif packet.type == 1:
         # update routing table
         update = 0 # flag needed because there can be multiple entries to update
+        next = txNode.id
         for dest in txNode.rt.destSet:
-            # return update or not; side effect: update entry
-            update += updateRT(dest,txNode,rxNode,dR)
+            metric = txNode.rt.metricDict[dest] + 1
+            seq = txNode.rt.seqDict[dest]
+            # existing dest
+            if dest in rxNode.rt.destSet:
+                if seq < rxNode.rt.seqDict[dest] or metric >= rxNode.rt.metricDict[dest]:
+                    continue
+            # new dest
+            else:
+                # for direct link, if dR does not exceed rssi margin, reject link to ensure link quality
+                if dR < RM and metric == 1:
+                    continue                    
+            rxNode.rt.destSet.add(dest)
+            rxNode.rt.nextDict[dest] = next
+            rxNode.rt.metricDict[dest] = metric
+            rxNode.rt.seqDict[dest] = seq
+            update = 1
+        # broadcast table(beacon)
         if update and packet.ttl > 0:
             rxNode.relayPacket(packet)
             rxNode.rt.seqDict[rxNode.id] += 2

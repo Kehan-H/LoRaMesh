@@ -25,7 +25,7 @@ nw.TTL = 10
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
-bs = nw.myNode(0,locsB[0],locsB[1],10)
+bs = nw.myNode(0,locsB[0],locsB[1])
 bs.genPacket(0,25,1)
 bs.genPacket(0,25,1)
 bs.genPacket(0,25,1)
@@ -34,7 +34,7 @@ nw.nodes.append(bs)
 # end nodes initialization
 locsN = np.loadtxt('600x800.csv',delimiter=',')
 for i in range(0,locsN.shape[0]):
-    node = nw.myNode(i+1,locsN[i,0],locsN[i,1],1)
+    node = nw.myNode(i+1,locsN[i,0],locsN[i,1])
     nw.nodes.append(node)
 
 # run nodes
