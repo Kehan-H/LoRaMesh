@@ -10,6 +10,9 @@ p0 = (1-(1/n0))**(n0-1)
 # rssi margin to ensure reliable routing result
 RM = 22.5
 
+# time threshold for not receiving from gw
+K = 5000
+
 # avg time between generated data packets in ms
 avgGenTime = 1000*60
 
@@ -19,12 +22,12 @@ plenD = 15 # data
 plenQ = 10 # query
 
 #
-# MAC protocols (rx -> tx)
+# active process in rx
 # 
 # outputs:
 #   nxMode - next mode of transceiver
 #   dt1 - time for staying in rx mode before the next mode 
-#   dt2 - time before the next protocol loop after returning to rx mode from other mode 
+#   dt2 - time before the next protocol loop after the next mode is done
 #
 
 # csma
@@ -35,7 +38,6 @@ def csma(txNode,t0):
     # initialize randomness to first time frame
     if t0 == 0:
         dt1 = random.randint(0,5000)
-        print(dt1)
         return nxMode,dt1,dt2
     # p-csma
     if txNode.txBuffer:
@@ -55,40 +57,65 @@ def csma(txNode,t0):
         dt1 = 500
     return nxMode,dt1,dt2
 
-# # query-based
-# def query(txNode):
-#     nxMode = 1
-#     dt1 = 0
-#     dt2 = 0
-#     # BS
-#     if txNode.id == 0:
-#         if len(txNode.rt.destSet) <= 1:
-#             nxMode = 1
-#             txNode.genPacket(0,25,1)
-#             dt2 = 60*1000
-#         else:
-#             # txBuffer is empty. can start a new round of query
-#             if len(txNode.txBuffer) == 0:
-#                 for id in txNode.rt.destSet:
-#                     if id != txNode.id:
-#                         txNode.genPacket(0,plenQ,2)
-#             # query not finished
-#             else:
-#                 pass
-#             nxMode = 2
-#             dt1 = 
+# query-based
+def query(txNode,t0):
+    nxMode = 1
+    dt1 = 0
+    dt2 = 0
+    # GW
+    if txNode.id == 0:
+        clist = (id for id in txNode.rt.destSet if id != txNode.id)
+        # check response
+        for id in clist:
+            # timeout
+            if txNode.rt.resp[id] == False:
+                txNode.rt.tout[id] += 1
+                if txNode.rt.tout[id] > 5:
+                    txNode.rt.tout[id] = 0
+                    txNode.rt.destSet.remove(id)
+            else:
+                txNode.rt.resp[id] = False
+        # send beacon
+        if len(txNode.rt.destSet) <= 1:
+            nxMode = 2
+            txNode.genPacket(0,25,1)
+            dt2 = 60*1000
+        # send query
+        else:
+            # txBuffer is empty. can start a new round of query
+            if len(txNode.txBuffer) == 0:
+                for id in clist:
+                    txNode.genPacket(0,plenQ,2)
+            # send query in sequence
+            nxMode = 2
+            dt1 = 0
+            dt2 = 1000 # wait 1s for response
 
-
-#     # end devices
-#     elif txNode.id > 0:
-#         pass
-#     # undefined device id == 0 
-#     else:
-#         raise ValueError('undefined node id')
-#     return nxMode,dt1,dt2
+    # end devices
+    elif txNode.id > 0:
+        # remove parent if not receive from GW for k ms
+        if txNode.joined and (t0 - txNode.tgw >= K):
+            txNode.joined = False
+            txNode.rt.destSet.remove(0)
+        # has packet to transmit
+        if txNode.txBuffer:
+            nxMode = 2
+        # nothing to transmit
+        else:
+            nxMode = 1
+            dt1 = 200 # refresh
+    # undefined device id == 0 
+    else:
+        raise ValueError('undefined node id')
+    return nxMode,dt1,dt2
 
 #
-# routing algorithms (packet processing after scccessfully decoded)
+# reactive process after packet is successfully decoded
+#
+# outputs:
+#   nxMode - next mode of transceiver
+#   dt1 - time for staying in rx mode before the next mode 
+#   dt2 - time before the next process after the next mode is done
 #
 
 # DSDV
@@ -101,9 +128,7 @@ def dsdv(packet,txNode,rxNode,dR):
         # arrive at next/dest
         else:
             if packet.dest == rxNode.id:
-                packet.src.arr += 1
-                if packet.src.arr > packet.src.pkts:
-                    raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
+                pass
             elif packet.ttl > 0:
                 rxNode.relayPacket(packet)
             # pkt runs out of ttl before reaching dest
@@ -135,10 +160,64 @@ def dsdv(packet,txNode,rxNode,dR):
         if update and packet.ttl > 0:
             rxNode.relayPacket(packet)
             rxNode.rt.seqDict[rxNode.id] += 2
-    
-    # reserved for other packet type
     else:
-        pass
+        raise ValueError('undefined packet type')
+
+# # react to packets
+# def react(packet,txNode,rxNode,dR):
+#     # GW
+#     if txNode.id == 0:
+#         # data packets
+#         if packet.type == 0:
+#             if packet.dest == 0:
+#                 packet.src.arr += 1
+#                 if packet.src.arr > packet.src.pkts:
+#                     raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
+
+#         # routing beacon
+#         elif packet.type == 1:
+#             pass
+#         # query
+#         elif packet.type == 2:
+#             pass
+#         # join request
+#         elif packet.type == 3:
+#             pass
+#         # confirm
+#         elif packet.type == 4:
+#             pass
+#         # reserved for other packet type
+#         else:
+#             pass
+#     # end devices
+#     elif txNode.id > 0:
+#         pass
+#     # undefined device id == 0 
+#     else:
+#         raise ValueError('undefined node id')
+
+
+#     # data packets
+#     if packet.type == 0:
+#         pass
+#     # routing beacon
+#     elif packet.type == 1:
+#         pass
+#     # query
+#     elif packet.type == 2:
+#         pass
+#     # join request
+#     elif packet.type == 3:
+#         pass
+#     # confirm
+#     elif packet.type == 4:
+#         pass
+#     # reserved for other packet type
+#     else:
+#         raise ValueError('undefined packet type')
+
+
+#     return 0
 
 #
 # packets generation scheme
@@ -149,7 +228,7 @@ def dsdv(packet,txNode,rxNode,dR):
 
 # periodic generator
 def periGen(node):
-    # BS
+    # GW
     if node.id == 0:
         node.genPacket(0,plenB,1)
         dt = 10*60*1000
@@ -163,7 +242,7 @@ def periGen(node):
 
 # exponential generator for end devices
 def expoGen(node):
-    # BS
+    # GW
     if node.id == 0:
         node.genPacket(0,plenB,1)
         dt = 10*60*1000

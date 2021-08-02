@@ -25,11 +25,11 @@ nw.TTL = 10
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
-bs = nw.myNode(0,locsB[0],locsB[1])
-bs.genPacket(0,25,1)
-bs.genPacket(0,25,1)
-bs.genPacket(0,25,1)
-nw.nodes.append(bs)
+gw = nw.myNode(0,locsB[0],locsB[1])
+gw.genPacket(0,25,1)
+gw.genPacket(0,25,1)
+gw.genPacket(0,25,1)
+nw.nodes.append(gw)
 
 # end nodes initialization
 locsN = np.loadtxt('600x800.csv',delimiter=',')

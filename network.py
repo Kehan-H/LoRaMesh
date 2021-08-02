@@ -155,7 +155,7 @@ class myNode():
         self.fade = 0 # packets lost due to fading, independent
 
         self.relay = 0
-        self.pkts = 0 # packets generated, exclude relayed ones
+        self.pkts = 0 # data packets generated, exclude relayed ones
         self.arr = 0 # packets arrive at destination
 
         # FIFO lists
@@ -184,7 +184,8 @@ class myNode():
     def genPacket(self,dest,plen,type):
         packet = myPacket(self.pkts,self,dest,self,plen,type)
         self.txBuffer.append(packet)
-        self.pkts += 1
+        if type == 0:
+            self.pkts += 1
 
     # change mode flag and update time of the last status
     def modeTo(self,mode):
@@ -223,9 +224,12 @@ class myNode():
             self.metricDict = {node.id:0} # hops
             self.seqDict = {node.id:0}
             
-            # query-based table
-            self.timeout = {node.id:0}
-            self.rxFlag = False
+            # query-based extension for GW
+            self.tout = {} # timeout count
+            self.resp = {} # responded or not
+            # query-based extension for end devices
+            self.tgw = 0 # time stamp of last receiving from GW
+            self.joined = False
 
         def getNbr(self):
             nbr = set()
@@ -250,6 +254,8 @@ class myPacket():
         # 0 - data
         # 1 - routing beacon
         # 2 - query
+        # 3 - join request
+        # 4 - confirm
         self.type = type
 
         # default RF settings
@@ -328,15 +334,19 @@ def transceiver(env,txNode):
                 # rssi good and no col or mis
                 if result and not any(result):
                     pr.dsdv(packet,txNode,nodes[i],dR)
+                    # delivery counter on arrival
+                    if packet.dest == nodes[i].id and txNode.rt.nextDict[packet.dest] == nodes[i].id and packet.type == 0:
+                        packet.src.arr += 1
+                        if packet.src.arr > packet.src.pkts:
+                            raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
                 # catch losing condition when node is critical
-                elif txNode.rt.nextDict[packet.dest] == nodes[i].id:
+                elif txNode.rt.nextDict[packet.dest] == nodes[i].id and packet.type == 0:
                     try:
                         packet.src.coll += result[0]
                         packet.src.miss += result[1]
                     # error when result is empty
                     except:
                         packet.src.fade += 1
-                # rssi bad (not found in rxBuffer) or coll or miss
                 else:
                     pass
             txNode.modeTo(1)

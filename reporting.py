@@ -5,9 +5,9 @@ def print_data(nodes):
     for node in nodes:
         if node.id >= 0:
             print(str(node.id) + ':' + node.pathTo(0))
-            print('DER = ' + str(node.arr/node.pkts))
-            print('Faded Rate = ' + str(node.fade/node.pkts))
             try:
+                print('DER = ' + str(node.arr/node.pkts))
+                print('Faded Rate = ' + str(node.fade/node.pkts))
                 print('Collision Rate = ' + str(node.coll/(node.pkts-node.fade)))
                 print('Miss Rate = ' + str(node.miss/(node.pkts-node.fade)))
             except:
