@@ -4,10 +4,14 @@ import numpy as np
 import math
 
 import protocol as pr
+import catchloss as cl
 
 #
 # CONTANTS
 #
+
+# protocol
+EXP = 0
 
 # default tx param
 PTX = 5
@@ -224,12 +228,16 @@ class myNode():
             self.metricDict = {node.id:0} # hops
             self.seqDict = {node.id:0}
             
-            # query-based extension for GW
+            # query-based table
+            self.childlist = set()
+            # GW only
             self.tout = {} # timeout count
             self.resp = {} # responded or not
-            # query-based extension for end devices
-            self.tgw = 0 # time stamp of last receiving from GW
+            # end devices only
+            self.parent = None
+            self.lrt = 0 # time stamp of last received query / beacon
             self.joined = False
+            self.hops = None
 
         def getNbr(self):
             nbr = set()
@@ -334,21 +342,9 @@ def transceiver(env,txNode):
                 # rssi good and no col or mis
                 if result and not any(result):
                     pr.dsdv(packet,txNode,nodes[i],dR)
-                    # delivery counter on arrival
-                    if packet.dest == nodes[i].id and txNode.rt.nextDict[packet.dest] == nodes[i].id and packet.type == 0:
-                        packet.src.arr += 1
-                        if packet.src.arr > packet.src.pkts:
-                            raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
                 # catch losing condition when node is critical
-                elif txNode.rt.nextDict[packet.dest] == nodes[i].id and packet.type == 0:
-                    try:
-                        packet.src.coll += result[0]
-                        packet.src.miss += result[1]
-                    # error when result is empty
-                    except:
-                        packet.src.fade += 1
                 else:
-                    pass
+                    cl.catch1(packet,txNode,nodes[i],result)
             txNode.modeTo(1)
             yield env.timeout(act[2])
         # to sleep

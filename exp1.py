@@ -15,6 +15,9 @@ import reporting as rp
 simtime = 5*1000*60*60
 random.seed(15)
 
+# set experiment
+nw.EXP = 0
+
 # override default tx param
 nw.PTX = 14
 nw.SF = 7
