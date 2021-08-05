@@ -208,7 +208,6 @@ class myNode():
         self.modeStart = env.now
 
     def pathTo(self,dest):
-        global nodes
         if self.id == dest:
             return ''
         elif dest not in self.rt.destSet:
@@ -238,13 +237,6 @@ class myNode():
             self.lrt = 0 # time stamp of last received query / beacon
             self.joined = False
             self.hops = None
-
-        def getNbr(self):
-            nbr = set()
-            for node in nodes:
-                if node.id in self.nextDict.values():
-                    nbr.add(node)
-            return nbr
 
 #
 # this function creates a packet
@@ -325,19 +317,18 @@ def transceiver(env,txNode):
             packet.appearTime = env.now
             packet.chanEst(nodes)
             sensitivity = sensi[packet.sf - 7, [125,250,500].index(packet.bw) + 1]
+            ids = [i for i in range(len(nodes)) if i != txNode.id] 
             # receive packet
-            for i in range(len(nodes)):
-                try:
-                    dR = packet.rssiAt[nodes[i]] - sensitivity # error when txNode.id == nodes[i].id
-                except:
-                    continue
+            for i in ids:
+                dR = packet.rssiAt[nodes[i]] - sensitivity
                 if dR > 0: # rssi good at receiver, add packet to rxBuffer
                     col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets                    
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
                     nodes[i].rxBuffer.append([packet,col,mis]) # log packet along with appear time and flags
             yield env.timeout(packet.airtime()) # airtime
             # complete packet has been processed by rx node; can remove it
-            for i in range(len(nodes)):
+            for i in ids:
+                dR = packet.rssiAt[nodes[i]] - sensitivity
                 result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
                 # rssi good and no col or mis
                 if result and not any(result):

@@ -5,6 +5,7 @@ import random
 import numpy as np
 
 import network as nw
+import protocol as pr
 import reporting as rp
 
 #
@@ -15,16 +16,21 @@ import reporting as rp
 simtime = 5*1000*60*60
 random.seed(15)
 
-# set experiment
-nw.EXP = 1
+# network settings
+nw.EXP = 0
 
-# override default tx param
 nw.PTX = 8
 nw.SF = 7
 nw.CR = 4
 nw.BW = 125
 nw.FREQ = 900000000
 nw.TTL = 10
+
+# protocol settings
+pr.n0 = 5
+pr.RM = 22.5
+pr.K = 5*60*1000
+pr.HL = 3
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])

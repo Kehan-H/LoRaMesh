@@ -17,7 +17,7 @@ K = 5*60*1000
 HL = 3
 
 # avg time between generated data packets in ms
-avgGenTime = 1000*60
+avgGenTime = 1000*30
 
 # default packet length
 plenA = 10 # query/confirm/join
@@ -124,7 +124,6 @@ def query(txNode,t0):
 
 # DSDV
 def dsdv(packet,txNode,rxNode,dR):
-    # data packets
     if packet.type == 0:
         # not supposed to receive, wasted
         if txNode.rt.nextDict[packet.dest] != rxNode.id:
@@ -143,7 +142,7 @@ def dsdv(packet,txNode,rxNode,dR):
     # routing beacon
     elif packet.type == 1:
         # update routing table
-        update = 0 # flag needed because there can be multiple entries to update
+        update = False # flag needed because there can be multiple entries to update
         next = txNode.id
         for dest in txNode.rt.destSet:
             metric = txNode.rt.metricDict[dest] + 1
@@ -155,17 +154,18 @@ def dsdv(packet,txNode,rxNode,dR):
             # new dest
             else:
                 # for direct link, if dR does not exceed rssi margin, reject link to ensure link quality
-                if dR < RM and metric == 1:
-                    continue                    
-            rxNode.rt.destSet.add(dest)
+                if dR < RM:
+                    continue
+                else:
+                    rxNode.rt.destSet.add(dest)
             rxNode.rt.nextDict[dest] = next
             rxNode.rt.metricDict[dest] = metric
             rxNode.rt.seqDict[dest] = seq
-            update = 1
+            update = True
         # broadcast table(beacon)
         if update and packet.ttl > 0:
-            rxNode.relayPacket(packet)
             rxNode.rt.seqDict[rxNode.id] += 2
+            rxNode.relayPacket(packet)
     else:
         raise ValueError('undefined packet type')
 
