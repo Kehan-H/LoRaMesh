@@ -5,6 +5,7 @@ import random
 import numpy as np
 
 import network as nw
+import protocol as pr
 import reporting as rp
 
 #
@@ -13,18 +14,23 @@ import reporting as rp
 
 # simulation settings
 simtime = 5*1000*60*60
-random.seed(15)
+random.seed()
 
-# set experiment
-nw.EXP = 0
+# network settings
+nw.EXP = 1
 
-# override default tx param
-nw.PTX = 14
+nw.PTX = 20
 nw.SF = 7
 nw.CR = 4
 nw.BW = 125
 nw.FREQ = 900000000
 nw.TTL = 10
+
+# protocol settings
+pr.n0 = 5
+pr.RM = 28
+pr.K = 5*60*1000
+pr.HL = 3
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
@@ -47,8 +53,8 @@ for i in range(1,len(nw.nodes)):
     nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
-rp.print_data_1(nw.nodes)
-rp.display_graph_1(nw.nodes)
+rp.print_data(nw.nodes)
+rp.display_graph(nw.nodes)
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
 # sent = sum(n.sent for n in nodes)

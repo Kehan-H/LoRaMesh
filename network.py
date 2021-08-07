@@ -217,6 +217,17 @@ class myNode():
                 if node.id == self.rt.nextDict[dest]:
                     nextNode = node
             return ' -> ' + str(self.rt.nextDict[dest]) + nextNode.pathTo(dest)
+    
+    def getNbr(self):
+        nbr = set()
+        for other in nodes:
+            if EXP == 1:
+                if other.id in self.rt.nextDict.values():
+                    nbr.add(other)
+            elif EXP == 2:
+                if other.id == self.rt.parent:
+                    nbr.add(other)
+        return nbr
 
     # this function creates a routing table (associated with a node)
     class myRT():

@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 
+from network import EXP
+
 # show statistics
-def print_data(nodes,exp):
+def print_data(nodes):
     for node in nodes:
         if node.id >= 0:
             print(str(node.id) + ':' + node.pathTo(0))
@@ -15,16 +17,9 @@ def print_data(nodes,exp):
             print('\n')
 
 # show topology
-def display_graph(nodes,exp):
+def display_graph(nodes):
     for node in nodes:
-        nbr = set()
-        for other in nodes:
-            if exp == 1:
-                if other.id in node.nextDict.values():
-                    nbr.add(other)
-            if exp == 2:
-                if other.id == node.rt.parent:
-                    nbr.add(other)
+        nbr = node.getNbr()
         for n in nbr:
             plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
         plt.scatter(node.x,node.y,color='red',zorder=5)
