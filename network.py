@@ -10,7 +10,7 @@ import catchloss as cl
 # CONTANTS
 #
 
-# protocol
+# experiment no.
 EXP = 0
 
 # default tx param
@@ -20,6 +20,9 @@ CR = 4
 BW = 125
 FREQ = 900000000
 TTL = 10
+
+# shadowing
+SIGMA = 11.25
 
 # this is an array with measured values for sensitivity
 # see paper, Table 3
@@ -286,13 +289,12 @@ class myPacket():
     def chanEst(self,nodes):
         for rxNode in (node for node in nodes if node != self.txNode):
             gamma = 2.75 # path loss exponent
-            sigma = 11.25
             d0 = 1 # ref. distance in m
             PLd0 = 74.85 # mean path loss at d0
             GL = 0 # combined gain
             # log-shadow
             dist = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
-            PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.gauss(0,sigma)     
+            PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.gauss(0,SIGMA)     
             self.rssiAt[rxNode] = self.txpow + GL - PL
 
     def airtime(self):
