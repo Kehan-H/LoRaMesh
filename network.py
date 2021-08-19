@@ -213,14 +213,26 @@ class myNode():
     # [next node, ... , destination node]
     def pathTo(self,dest):
         route = []
-        if dest not in self.rt.destSet:
-            return route
-        atNode = self
-        while atNode.id != dest:
-            for node in nodes:
-                if node.id == atNode.rt.nextDict[dest]:
-                    route.append(node)
-                    atNode = node
+        if EXP in [1,2]:
+            if dest not in self.rt.destSet:
+                return route
+            atNode = self
+            while atNode.id != dest:
+                for node in nodes:
+                    if node.id == atNode.rt.nextDict[dest]:
+                        route.append(node)
+                        atNode = node
+        elif EXP == 3:
+            if self.rt.parent == None:
+                return route
+            atNode = self
+            while atNode.id != 0:
+                for node in nodes:
+                    if node.id == atNode.rt.parent:
+                        route.append(node)
+                        atNode = node
+        else:
+            raise ValueError('EXP number ' + EXP + ' is not defined') 
         return route
     
     def getNbr(self):
@@ -250,8 +262,9 @@ class myNode():
             self.seqDict = {node.id:0}
             
             # query-based table
-            self.childlist = set()
+            self.childs = set()
             # GW only
+            self.qlst = [] # ids of nodes to query
             self.tout = {} # timeout count
             self.resp = {} # responded or not
             # end devices only

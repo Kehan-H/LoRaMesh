@@ -96,27 +96,29 @@ def proactive3(txNode,t0):
     # GW
     if txNode.id == 0:
         # check response
-        for id in txNode.rt.childlist:
+        if txNode.rt.qlst:
+            id = txNode.rt.qlst.pop(0)
             # timeout
             if txNode.rt.resp[id] == False:
                 txNode.rt.tout[id] += 1
                 if txNode.rt.tout[id] > 5:
-                    txNode.rt.tout[id] = 0
-                    txNode.rt.childlist.remove(id)
+                    txNode.rt.tout.pop(id)
+                    txNode.rt.childs.remove(id)
+            # received
             else:
+                txNode.rt.tout[id] = 0
                 txNode.rt.resp[id] = False
         # send beacon
-        if len(txNode.rt.childlist) == 0:
+        if len(txNode.rt.childs) == 0:
             nxMode = 2
             txNode.genPacket(0,25,1)
             dt2 = 60*1000
         # send query
         else:
-            # txBuffer is empty. can start a new round of query
-            if len(txNode.txBuffer) == 0:
-                for id in txNode.rt.childlist:
-                    txNode.genPacket(0,plenA,2)
-            # send query in sequence
+            # queue is empty. can start a new round of query
+            if not txNode.rt.qlst:
+                txNode.rt.qlst = list(txNode.rt.childs)
+            txNode.genPacket(0,plenA,txNode.rt.qlst[0])
             nxMode = 2
             dt1 = 0
             dt2 = 1000 # wait 1s for response
@@ -268,13 +270,14 @@ def reactive3(packet,txNode,rxNode,dR,t0):
             # arrive at dest
             if txNode.parent == 0:
                 packet.src.arr += 1
-                rxNode.rt.resp[rxNode] = 1
+                rxNode.rt.resp[rxNode] = True
                 if packet.src.arr > packet.src.pkts:
                     raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
         # join request
         elif packet.type == 3:
             rxNode.genPacket(packet.src.id,plenA,4)
-            rxNode.rt.childlist.add(packet.src.id)
+            rxNode.rt.childs.add(packet.src.id)
+            rxNode.rt.tout[id] = 0
         # beacon/query/confirm
         else:
             pass
@@ -310,7 +313,7 @@ def reactive3(packet,txNode,rxNode,dR,t0):
             elif packet.type == 2:
                 if packet.dest == rxNode.id:
                     rxNode.genPacket(0,plenB,0)
-                elif packet.dest in rxNode.rt.childlist:
+                elif packet.dest in rxNode.rt.childs:
                     rxNode.relayPacket(packet)
                 else:
                     pass
@@ -320,12 +323,12 @@ def reactive3(packet,txNode,rxNode,dR,t0):
                     pass
                 elif packet.src.id != txNode.id:
                     rxNode.relayPacket(packet)
-                    rxNode.rt.childlist.add(packet.src.id)
+                    rxNode.rt.childs.add(packet.src.id)
                 # direct link
                 elif dR > RM1:
                     rxNode.genPacket(packet.src.id,plenA,4) # confirm
                     rxNode.relayPacket(packet)
-                    rxNode.rt.childlist.add(packet.src.id)
+                    rxNode.rt.childs.add(packet.src.id)
                 else:
                     pass
             # beacon/confirm

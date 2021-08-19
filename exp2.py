@@ -17,8 +17,8 @@ simtime = 5*1000*60*60
 random.seed(15)
 
 # network settings
-nw.EXP = 2
-nw.SIGMA = 10
+nw.EXP = rp.EXP = 2
+nw.SIGMA = 11.25
 
 nw.PTX = 12
 nw.SF = 7
@@ -56,6 +56,8 @@ nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
 rp.display_tree(nw.nodes)
+rp.display_stat(nw.nodes)
+rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
 # sent = sum(n.sent for n in nodes)
