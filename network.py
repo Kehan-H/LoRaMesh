@@ -261,16 +261,14 @@ class myNode():
             self.hops = None
         
         def newRssi(self,txid,rssi):
-            full = False
-            if txid in self.rssiRec:
-                # 15 rssi
-                if len(self.rssiRec[txid]) >= 15:
-                    self.rssiRec[txid].pop(0)
-                    full = True
+            if txid in self.rssiRec.keys():
                 self.rssiRec[txid].append(rssi)
+                # 15 rssi
+                if len(self.rssiRec[txid]) > 15:
+                    self.rssiRec[txid].pop(0)
             else:
                 self.rssiRec[txid] = [rssi]
-            return full
+
 #
 # this function creates a packet
 # it also sets all parameters
@@ -339,7 +337,14 @@ def transceiver(env,txNode):
     while True:
         # to receive
         if txNode.mode == 1:
-            act = getattr(pr,'proactive' + str(EXP))(txNode,env.now)
+            if EXP == 1:
+                act = pr.proactive1(txNode,env.now)
+            elif EXP == 2:
+                act = pr.proactive2(txNode,env.now)
+            elif EXP == 3:
+                act = pr.proactive3(txNode,env.now)
+            else:
+                raise ValueError('EXP number ' + EXP + ' is not defined')
             txNode.modeTo(act[0])
             yield env.timeout(act[1])
         # to transmit
@@ -362,10 +367,20 @@ def transceiver(env,txNode):
                 result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
                 # rssi good and no col or mis
                 if result and not any(result):
-                    getattr(pr,'reactive' + str(EXP))(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
+                    if EXP == 1:
+                        pr.reactive1(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
+                    elif EXP == 2:
+                        pr.reactive2(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
+                    elif EXP == 3:
+                        pr.reactive3(packet,txNode,nodes[i],packet.rssiAt[nodes[i]],env.now)
+                    else:
+                        raise ValueError('EXP number ' + EXP + ' is not defined')
                 # catch losing condition when node is critical
                 else:
-                    cl.catch1(packet,txNode,nodes[i],result)
+                    if EXP in [1,2]:
+                        cl.catch1(packet,txNode,nodes[i],result)
+                    elif EXP == 3:
+                        pass
             txNode.modeTo(1)
             yield env.timeout(act[2])
         # to sleep

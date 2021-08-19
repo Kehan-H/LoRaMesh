@@ -8,7 +8,8 @@ n0 = 5 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # rssi margin to ensure reliable routing result
-RM = 0
+RM1 = 0
+RM2 = 0
 
 # time threshold for not receiving from gw
 K = 5*60*1000
@@ -220,19 +221,30 @@ def reactive2(packet,txNode,rxNode,rssi):
             seq = txNode.rt.seqDict[dest]
             # existing dest
             if dest in rxNode.rt.destSet:
-                # update condition of dsdv
-                if seq >= rxNode.rt.seqDict[dest] and metric < rxNode.rt.metricDict[dest]:
-                    # if rssi is not good, reject update to ensure link quality
+                # dsdv with hysteresis
+                if seq >= rxNode.rt.seqDict[dest] and metric <= rxNode.rt.metricDict[dest] + 1:
                     num = len(rxNode.rt.rssiRec[next])
                     avg =  sum(rxNode.rt.rssiRec[next])/num
                     old = rxNode.rt.nextDict[dest]
                     oldnum = len(rxNode.rt.rssiRec[old])
-                    oldavg =  sum(rxNode.rt.rssiRec[old])/oldnum 
-                    if avg > oldavg - RM and num >= oldnum > 2:
-                        rxNode.rt.nextDict[dest] = next
-                        rxNode.rt.metricDict[dest] = metric
-                        rxNode.rt.seqDict[dest] = seq
-                        update = True
+                    oldavg = sum(rxNode.rt.rssiRec[old])/oldnum
+                    if (num >= oldnum > 5):
+                        # if metric is better and rssi is not too worse, allow update
+                        if metric < rxNode.rt.metricDict[dest] and (avg > oldavg - RM1):
+                            pass
+                        # if metric is not too worse and rssi is significantly better, update to ensure link quality
+                        elif metric <= rxNode.rt.metricDict[dest] + 1 and (avg > oldavg + RM2):
+                            pass
+                        # reject update
+                        else:
+                            continue
+                    # reject update
+                    else:
+                        continue
+                    rxNode.rt.nextDict[dest] = next
+                    rxNode.rt.metricDict[dest] = metric
+                    rxNode.rt.seqDict[dest] = seq
+                    update = True
             # new dest
             else:
                 rxNode.rt.destSet.add(dest)
@@ -281,7 +293,7 @@ def reactive3(packet,txNode,rxNode,dR,t0):
                 else:
                     pass
             # send join request
-            elif packet.type in [0,1,2] and dR > RM and txNode.rt.hops <= HL:
+            elif packet.type in [0,1,2] and dR > RM1 and txNode.rt.hops <= HL:
                 rxNode.genPacket(0,plenA,3)
                 rxNode.rt.parent = txNode.id
                 rxNode.rt.lrt = t0
@@ -310,7 +322,7 @@ def reactive3(packet,txNode,rxNode,dR,t0):
                     rxNode.relayPacket(packet)
                     rxNode.rt.childlist.add(packet.src.id)
                 # direct link
-                elif dR > RM:
+                elif dR > RM1:
                     rxNode.genPacket(packet.src.id,plenA,4) # confirm
                     rxNode.relayPacket(packet)
                     rxNode.rt.childlist.add(packet.src.id)

@@ -29,7 +29,8 @@ nw.TTL = 10
 
 # protocol settings
 pr.n0 = 5
-pr.RM = 0
+pr.RM1 = 0
+pr.RM2 = 0
 pr.K = 5*60*1000
 pr.HL = 3
 
