@@ -220,19 +220,26 @@ def reactive2(packet,txNode,rxNode,rssi):
             seq = txNode.rt.seqDict[dest]
             # existing dest
             if dest in rxNode.rt.destSet:
-                # update condition of dsdv
-                if seq >= rxNode.rt.seqDict[dest] and metric < rxNode.rt.metricDict[dest]:
-                    # if rssi is not good, reject update to ensure link quality
+                # dsdv with hysteresis
+                if seq >= rxNode.rt.seqDict[dest]:
                     num = len(rxNode.rt.rssiRec[next])
                     avg =  sum(rxNode.rt.rssiRec[next])/num
                     old = rxNode.rt.nextDict[dest]
                     oldnum = len(rxNode.rt.rssiRec[old])
                     oldavg =  sum(rxNode.rt.rssiRec[old])/oldnum 
-                    if avg > oldavg - RM and num >= oldnum > 2:
-                        rxNode.rt.nextDict[dest] = next
-                        rxNode.rt.metricDict[dest] = metric
-                        rxNode.rt.seqDict[dest] = seq
-                        update = True
+                    # if metric is better and rssi is slightly worse, allow update
+                    if metric < rxNode.rt.metricDict[dest] and (avg > oldavg - RM) and (num >= oldnum > 2):
+                        pass
+                    # if metric is slightly worse and rssi is significantly better, update to ensure link quality
+                    elif metric <= rxNode.rt.metricDict[dest] + 1 and (avg > oldavg + RM) and (num >= oldnum > 2):
+                        pass
+                    # reject update
+                    else:
+                        continue
+                    rxNode.rt.nextDict[dest] = next
+                    rxNode.rt.metricDict[dest] = metric
+                    rxNode.rt.seqDict[dest] = seq
+                    update = True
             # new dest
             else:
                 rxNode.rt.destSet.add(dest)

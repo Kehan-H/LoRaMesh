@@ -14,12 +14,13 @@ import reporting as rp
 
 # simulation settings
 simtime = 5*1000*60*60
-random.seed(15)
+#random.seed(15)
 
 # network settings
-nw.EXP = 0
+nw.EXP = 2
+nw.SIGMA = 10
 
-nw.PTX = 8
+nw.PTX = 12
 nw.SF = 7
 nw.CR = 4
 nw.BW = 125
@@ -28,13 +29,14 @@ nw.TTL = 10
 
 # protocol settings
 pr.n0 = 5
-pr.RM = 22.5
+pr.RM = 5
 pr.K = 5*60*1000
 pr.HL = 3
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
 gw = nw.myNode(0,locsB[0],locsB[1])
+gw.genPacket(0,25,1)
 nw.nodes.append(gw)
 
 # end nodes initialization
@@ -44,12 +46,14 @@ for i in range(0,locsN.shape[0]):
     nw.nodes.append(node)
 
 # run nodes
-for i in range(0,len(nw.nodes)):
+nw.env.process(nw.transceiver(nw.env,nw.nodes[0]))
+for i in range(1,len(nw.nodes)):
     nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
+    nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
-rp.display_graph(nw.nodes)
+rp.display_tree(nw.nodes)
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
 # sent = sum(n.sent for n in nodes)

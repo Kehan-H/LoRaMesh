@@ -210,31 +210,39 @@ class myNode():
         self.mode = mode
         self.modeStart = env.now
 
+    # [next node, ... , destination node]
     def pathTo(self,dest):
-        if self.id == dest:
-            return ''
-        elif dest not in self.rt.destSet:
-            return 'no route'
-        else:
+        route = []
+        if dest not in self.rt.destSet:
+            return route
+        atNode = self
+        while atNode.id != dest:
             for node in nodes:
-                if node.id == self.rt.nextDict[dest]:
-                    nextNode = node
-            return ' -> ' + str(self.rt.nextDict[dest]) + nextNode.pathTo(dest)
+                if node.id == atNode.rt.nextDict[dest]:
+                    route.append(node)
+                    atNode = node
+        return route
     
     def getNbr(self):
         nbr = set()
         for other in nodes:
-            if EXP == 1:
+            if EXP in [1,2]:
                 if other.id in self.rt.nextDict.values():
                     nbr.add(other)
-            elif EXP == 2:
+            elif EXP == 3:
                 if other.id == self.rt.parent:
                     nbr.add(other)
+            else:
+                raise ValueError('EXP number ' + EXP + ' is not defined')
         return nbr
 
     # this function creates a routing table (associated with a node)
     class myRT():
         def __init__(self,node):
+            # history rssi grouped by node id
+            # dictionary of FIFO lists; list structure [rssi0, rssi1, ... , rssin]
+            self.rssiRec = {}
+
             # dsdv table
             self.destSet ={node.id}
             self.nextDict = {node.id:node.id}
@@ -251,7 +259,18 @@ class myNode():
             self.lrt = 0 # time stamp of last received query / beacon
             self.joined = False
             self.hops = None
-
+        
+        def newRssi(self,txid,rssi):
+            full = False
+            if txid in self.rssiRec:
+                # 15 rssi
+                if len(self.rssiRec[txid]) >= 15:
+                    self.rssiRec[txid].pop(0)
+                    full = True
+                self.rssiRec[txid].append(rssi)
+            else:
+                self.rssiRec[txid] = [rssi]
+            return full
 #
 # this function creates a packet
 # it also sets all parameters
@@ -320,7 +339,7 @@ def transceiver(env,txNode):
     while True:
         # to receive
         if txNode.mode == 1:
-            act = pr.csma(txNode,env.now)
+            act = getattr(pr,'proactive' + str(EXP))(txNode,env.now)
             txNode.modeTo(act[0])
             yield env.timeout(act[1])
         # to transmit
@@ -333,19 +352,17 @@ def transceiver(env,txNode):
             ids = [i for i in range(len(nodes)) if i != txNode.id] 
             # receive packet
             for i in ids:
-                dR = packet.rssiAt[nodes[i]] - sensitivity
-                if dR > 0: # rssi good at receiver, add packet to rxBuffer
+                if packet.rssiAt[nodes[i]] - sensitivity > 0: # rssi good at receiver, add packet to rxBuffer
                     col = checkcollision(packet,nodes[i]) # side effect: also change collision flags of other packets                    
                     mis = (nodes[i].mode != 1) # receiver not in rx mode
                     nodes[i].rxBuffer.append([packet,col,mis]) # log packet along with appear time and flags
             yield env.timeout(packet.airtime()) # airtime
             # complete packet has been processed by rx node; can remove it
             for i in ids:
-                dR = packet.rssiAt[nodes[i]] - sensitivity
                 result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
                 # rssi good and no col or mis
                 if result and not any(result):
-                    pr.dsdv(packet,txNode,nodes[i],dR)
+                    getattr(pr,'reactive' + str(EXP))(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                 # catch losing condition when node is critical
                 else:
                     cl.catch1(packet,txNode,nodes[i],result)
