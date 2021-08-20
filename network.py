@@ -159,7 +159,7 @@ class myNode():
         # statistics
         self.coll = 0 # packets lost due to collision
         self.miss = 0 # packets lost because rx node is not in rx mode; may overlap with the collision
-        self.fade = 0 # packets lost due to fading, independent
+        self.atte = 0 # packets lost due to path loss, independent
 
         self.relay = 0
         self.pkts = 0 # data packets generated, exclude relayed ones
@@ -324,7 +324,7 @@ class myPacket():
             GL = 0 # combined gain
             # log-shadow
             dist = math.sqrt((self.txNode.x-rxNode.x)**2+(self.txNode.y - rxNode.y)**2)
-            PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.gauss(0,SIGMA)     
+            PL = PLd0 + 10*gamma*math.log10(dist/d0) + random.gauss(0,SIGMA)
             self.rssiAt[rxNode] = self.txpow + GL - PL
 
     def airtime(self):

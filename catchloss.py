@@ -9,7 +9,7 @@ def catch1(packet,txNode,rxNode,result):
             packet.src.coll += result[0]
             packet.src.miss += result[1]
         else:
-            packet.src.fade += 1
+            packet.src.atte += 1
 
 # query-based
 def catch3(packet,txNode,rxNode,result):
@@ -18,4 +18,4 @@ def catch3(packet,txNode,rxNode,result):
             packet.src.coll += result[0]
             packet.src.miss += result[1]
         else:
-            packet.src.fade += 1
+            packet.src.atte += 1

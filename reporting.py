@@ -18,9 +18,9 @@ def print_data(nodes):
             print(str(node.id) + ':' + routeStr)
             try:
                 print('PDR = ' + str(node.arr/node.pkts))
-                print('Faded Rate = ' + str(node.fade/node.pkts))
-                print('Collision Rate = ' + str(node.coll/(node.pkts-node.fade)))
-                print('Miss Rate = ' + str(node.miss/(node.pkts-node.fade)))
+                print('Attenuated Rate = ' + str(node.atte/node.pkts))
+                print('Collision Rate = ' + str(node.coll/(node.pkts-node.atte)))
+                print('Miss Rate = ' + str(node.miss/(node.pkts-node.atte)))
             except:
                 pass
             print('\n')
