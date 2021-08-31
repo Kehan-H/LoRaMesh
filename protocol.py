@@ -14,8 +14,8 @@ n0 = 5 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # rssi margin to ensure reliable routing result
-RM1 = 1
-RM2 = 5
+RM1 = 5
+RM2 = 10
 
 # time threshold for not receiving from gw
 K = 5*60*1000
@@ -233,17 +233,18 @@ def reactive2(packet,txNode,rxNode,rssi):
             seq = txNode.rt.seqDict[dest]
             # existing dest
             if dest in rxNode.rt.destSet:
-                if seq >= rxNode.rt.seqDict[dest]:
+                if seq > rxNode.rt.seqDict[dest]:
+                    pass
+                elif seq == rxNode.rt.seqDict[dest]:
                     old = rxNode.rt.nextDict[dest]
-                    old_num = len(rxNode.rt.rssiRec[old])
-                    old_avg = sum(rxNode.rt.rssiRec[old])/old_num
-                    # always update lost route
-                    if metric == float('inf'):
-                        pass
+                    old_avg = sum(rxNode.rt.rssiRec[old])/len(rxNode.rt.rssiRec[old])
+                    # initial check
+                    if sample_num < 5 or sample_num < len(rxNode.rt.rssiRec[old]):
+                        continue
                     # conditionally update established routes
-                    elif (sample_num >= old_num >= 5):
+                    else:
                         # if metric is better and rssi is not too worse, allow update
-                        if metric < rxNode.rt.metricDict[dest] and (avg_rssi > old_avg - RM1):
+                        if metric <= rxNode.rt.metricDict[dest] and (avg_rssi > old_avg + RM1):
                             pass
                         # if metric is not too worse and rssi is significantly better, update to ensure link quality
                         elif metric <= rxNode.rt.metricDict[dest] + 1 and (avg_rssi > old_avg + RM2):
@@ -251,9 +252,6 @@ def reactive2(packet,txNode,rxNode,rssi):
                         # reject update
                         else:
                             continue
-                    # reject update at low sample number
-                    else:
-                        continue
                 else:
                     continue
             # new dest

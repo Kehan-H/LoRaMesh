@@ -19,7 +19,7 @@ SF = 7
 CR = 4
 BW = 125
 FREQ = 900000000
-TTL = 10
+TTL = 4
 
 # shadowing
 SIGMA = 11.25
