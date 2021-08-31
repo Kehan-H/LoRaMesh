@@ -273,6 +273,7 @@ class myNode():
             self.joined = False
             self.hops = None
         
+        # record new rssi value
         def newRssi(self,txid,rssi):
             if txid in self.rssiRec.keys():
                 self.rssiRec[txid].append(rssi)

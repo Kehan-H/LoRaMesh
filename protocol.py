@@ -218,29 +218,32 @@ def reactive2(packet,txNode,rxNode,rssi):
         rxNode.rt.newRssi(txNode.id,rssi)
         update = False # flag needed because there can be multiple entries to update
         next = txNode.id
+        sample_num = len(rxNode.rt.rssiRec[next])
+        avg_rssi =  sum(rxNode.rt.rssiRec[next])/sample_num
+        # dsdv with hysteresis
         for dest in txNode.rt.destSet:
             metric = txNode.rt.metricDict[dest] + 1
             seq = txNode.rt.seqDict[dest]
             # existing dest
             if dest in rxNode.rt.destSet:
-                # dsdv with hysteresis
-                if seq >= rxNode.rt.seqDict[dest] and metric <= rxNode.rt.metricDict[dest] + 1:
-                    num = len(rxNode.rt.rssiRec[next])
-                    avg =  sum(rxNode.rt.rssiRec[next])/num
-                    old = rxNode.rt.nextDict[dest]
-                    oldnum = len(rxNode.rt.rssiRec[old])
-                    oldavg = sum(rxNode.rt.rssiRec[old])/oldnum
-                    if (num >= oldnum > 5):
+                if seq >= rxNode.rt.seqDict[dest]:
+                    # always update lost route
+                    if metric == float('inf'):
+                        pass
+                    # conditionally update established routes
+                    elif (sample_num >= 5):
+                        old = rxNode.rt.nextDict[dest]
+                        old_avg = sum(rxNode.rt.rssiRec[old])/len(rxNode.rt.rssiRec[old])
                         # if metric is better and rssi is not too worse, allow update
-                        if metric < rxNode.rt.metricDict[dest] and (avg > oldavg - RM1):
+                        if metric < rxNode.rt.metricDict[dest] and (avg_rssi > old_avg - RM1):
                             pass
                         # if metric is not too worse and rssi is significantly better, update to ensure link quality
-                        elif metric <= rxNode.rt.metricDict[dest] + 1 and (avg > oldavg + RM2):
+                        elif metric <= rxNode.rt.metricDict[dest] + 1 and (avg_rssi > old_avg + RM2):
                             pass
                         # reject update
                         else:
                             continue
-                    # reject update
+                    # reject update at low sample number
                     else:
                         continue
                     rxNode.rt.nextDict[dest] = next
