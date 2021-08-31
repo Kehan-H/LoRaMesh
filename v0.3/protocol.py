@@ -8,7 +8,8 @@ n0 = 5 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # rssi margin to ensure reliable routing result
-RM = 0
+RM1 = 0
+RM2 = 0
 
 # time threshold for not receiving from gw
 K = 5*60*1000
@@ -95,27 +96,29 @@ def proactive3(txNode,t0):
     # GW
     if txNode.id == 0:
         # check response
-        for id in txNode.rt.childlist:
+        if txNode.rt.qlst:
+            id = txNode.rt.qlst.pop(0)
             # timeout
             if txNode.rt.resp[id] == False:
                 txNode.rt.tout[id] += 1
                 if txNode.rt.tout[id] > 5:
-                    txNode.rt.tout[id] = 0
-                    txNode.rt.childlist.remove(id)
+                    txNode.rt.tout.pop(id)
+                    txNode.rt.childs.remove(id)
+            # received
             else:
+                txNode.rt.tout[id] = 0
                 txNode.rt.resp[id] = False
         # send beacon
-        if len(txNode.rt.childlist) == 0:
+        if len(txNode.rt.childs) == 0:
             nxMode = 2
             txNode.genPacket(0,25,1)
             dt2 = 60*1000
         # send query
         else:
-            # txBuffer is empty. can start a new round of query
-            if len(txNode.txBuffer) == 0:
-                for id in txNode.rt.childlist:
-                    txNode.genPacket(0,plenA,2)
-            # send query in sequence
+            # queue is empty. can start a new round of query
+            if not txNode.rt.qlst:
+                txNode.rt.qlst = list(txNode.rt.childs)
+            txNode.genPacket(0,plenA,txNode.rt.qlst[0])
             nxMode = 2
             dt1 = 0
             dt2 = 1000 # wait 1s for response
@@ -220,19 +223,30 @@ def reactive2(packet,txNode,rxNode,rssi):
             seq = txNode.rt.seqDict[dest]
             # existing dest
             if dest in rxNode.rt.destSet:
-                # update condition of dsdv
-                if seq >= rxNode.rt.seqDict[dest] and metric < rxNode.rt.metricDict[dest]:
-                    # if rssi is not good, reject update to ensure link quality
+                # dsdv with hysteresis
+                if seq >= rxNode.rt.seqDict[dest] and metric <= rxNode.rt.metricDict[dest] + 1:
                     num = len(rxNode.rt.rssiRec[next])
                     avg =  sum(rxNode.rt.rssiRec[next])/num
                     old = rxNode.rt.nextDict[dest]
                     oldnum = len(rxNode.rt.rssiRec[old])
-                    oldavg =  sum(rxNode.rt.rssiRec[old])/oldnum 
-                    if avg > oldavg - RM and num >= oldnum > 2:
-                        rxNode.rt.nextDict[dest] = next
-                        rxNode.rt.metricDict[dest] = metric
-                        rxNode.rt.seqDict[dest] = seq
-                        update = True
+                    oldavg = sum(rxNode.rt.rssiRec[old])/oldnum
+                    if (num >= oldnum > 5):
+                        # if metric is better and rssi is not too worse, allow update
+                        if metric < rxNode.rt.metricDict[dest] and (avg > oldavg - RM1):
+                            pass
+                        # if metric is not too worse and rssi is significantly better, update to ensure link quality
+                        elif metric <= rxNode.rt.metricDict[dest] + 1 and (avg > oldavg + RM2):
+                            pass
+                        # reject update
+                        else:
+                            continue
+                    # reject update
+                    else:
+                        continue
+                    rxNode.rt.nextDict[dest] = next
+                    rxNode.rt.metricDict[dest] = metric
+                    rxNode.rt.seqDict[dest] = seq
+                    update = True
             # new dest
             else:
                 rxNode.rt.destSet.add(dest)
@@ -256,13 +270,14 @@ def reactive3(packet,txNode,rxNode,dR,t0):
             # arrive at dest
             if txNode.parent == 0:
                 packet.src.arr += 1
-                rxNode.rt.resp[rxNode] = 1
+                rxNode.rt.resp[rxNode] = True
                 if packet.src.arr > packet.src.pkts:
                     raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
         # join request
         elif packet.type == 3:
             rxNode.genPacket(packet.src.id,plenA,4)
-            rxNode.rt.childlist.add(packet.src.id)
+            rxNode.rt.childs.add(packet.src.id)
+            rxNode.rt.tout[id] = 0
         # beacon/query/confirm
         else:
             pass
@@ -281,7 +296,7 @@ def reactive3(packet,txNode,rxNode,dR,t0):
                 else:
                     pass
             # send join request
-            elif packet.type in [0,1,2] and dR > RM and txNode.rt.hops <= HL:
+            elif packet.type in [0,1,2] and dR > RM1 and txNode.rt.hops <= HL:
                 rxNode.genPacket(0,plenA,3)
                 rxNode.rt.parent = txNode.id
                 rxNode.rt.lrt = t0
@@ -298,7 +313,7 @@ def reactive3(packet,txNode,rxNode,dR,t0):
             elif packet.type == 2:
                 if packet.dest == rxNode.id:
                     rxNode.genPacket(0,plenB,0)
-                elif packet.dest in rxNode.rt.childlist:
+                elif packet.dest in rxNode.rt.childs:
                     rxNode.relayPacket(packet)
                 else:
                     pass
@@ -308,12 +323,12 @@ def reactive3(packet,txNode,rxNode,dR,t0):
                     pass
                 elif packet.src.id != txNode.id:
                     rxNode.relayPacket(packet)
-                    rxNode.rt.childlist.add(packet.src.id)
+                    rxNode.rt.childs.add(packet.src.id)
                 # direct link
-                elif dR > RM:
+                elif dR > RM1:
                     rxNode.genPacket(packet.src.id,plenA,4) # confirm
                     rxNode.relayPacket(packet)
-                    rxNode.rt.childlist.add(packet.src.id)
+                    rxNode.rt.childs.add(packet.src.id)
                 else:
                     pass
             # beacon/confirm
