@@ -18,7 +18,7 @@ random.seed(15)
 
 # network settings
 nw.EXP = rp.EXP = 2
-nw.SIGMA = 5
+nw.SIGMA = 11.25
 
 nw.PTX = 12
 nw.SF = 7
@@ -30,21 +30,22 @@ nw.TTL = 10
 # protocol settings
 pr.n0 = 5
 pr.RM1 = 5
-pr.RM2 = 10
+pr.RM2 = 5
 pr.K = 5*60*1000
 pr.HL = 3
 
 pr.rts = True
 
 # base station initialization
-locsB = np.array([800,800])
+locsB = np.array([397.188492418693,226.186250701973])
 gw = nw.myNode(0,locsB[0],locsB[1])
+gw.genPacket(0,25,1)
 gw.genPacket(0,25,1)
 gw.genPacket(0,25,1)
 nw.nodes.append(gw)
 
 # end nodes initialization
-locsN = np.loadtxt('array.csv',delimiter=',')
+locsN = np.loadtxt('600x800.csv',delimiter=',')
 for i in range(0,locsN.shape[0]):
     node = nw.myNode(i+1,locsN[i,0],locsN[i,1])
     nw.nodes.append(node)
@@ -57,7 +58,6 @@ for i in range(1,len(nw.nodes)):
 nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
-rp.display_tree(nw.nodes)
 rp.display_stat(nw.nodes)
 rp.show()
 

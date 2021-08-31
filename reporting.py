@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import glob
 
 EXP = 0
 
@@ -69,4 +70,15 @@ def display_stat(nodes):
     plt.grid(True)
 
 def show():
-    plt.show()
+    plt.get_current_fig_manager().show()
+
+def close():
+    plt.close()
+
+def save():
+    max = 0
+    for name in glob.iglob('topos/*.png', recursive=True):
+        idx = int(name[6:-4])
+        if idx >= max:
+            max = idx + 1
+    plt.savefig('topos/%d.png'%max)

@@ -1,15 +1,21 @@
 import random
+import reporting as rp
+import network as nw
 
 #
 # CONSTANTS
 #
 
+# real-time show
+rts = False
+
+# p-csma param
 n0 = 5 # assumed no. of neighbour nodes
 p0 = (1-(1/n0))**(n0-1)
 
 # rssi margin to ensure reliable routing result
-RM1 = 0
-RM2 = 0
+RM1 = 1
+RM2 = 5
 
 # time threshold for not receiving from gw
 K = 5*60*1000
@@ -221,19 +227,21 @@ def reactive2(packet,txNode,rxNode,rssi):
         sample_num = len(rxNode.rt.rssiRec[next])
         avg_rssi =  sum(rxNode.rt.rssiRec[next])/sample_num
         # dsdv with hysteresis
-        for dest in txNode.rt.destSet:
+        dests = (dest for dest in txNode.rt.destSet if dest != rxNode.id)
+        for dest in dests:
             metric = txNode.rt.metricDict[dest] + 1
             seq = txNode.rt.seqDict[dest]
             # existing dest
             if dest in rxNode.rt.destSet:
                 if seq >= rxNode.rt.seqDict[dest]:
+                    old = rxNode.rt.nextDict[dest]
+                    old_num = len(rxNode.rt.rssiRec[old])
+                    old_avg = sum(rxNode.rt.rssiRec[old])/old_num
                     # always update lost route
                     if metric == float('inf'):
                         pass
                     # conditionally update established routes
-                    elif (sample_num >= 5):
-                        old = rxNode.rt.nextDict[dest]
-                        old_avg = sum(rxNode.rt.rssiRec[old])/len(rxNode.rt.rssiRec[old])
+                    elif (sample_num >= old_num >= 5):
                         # if metric is better and rssi is not too worse, allow update
                         if metric < rxNode.rt.metricDict[dest] and (avg_rssi > old_avg - RM1):
                             pass
@@ -246,17 +254,20 @@ def reactive2(packet,txNode,rxNode,rssi):
                     # reject update at low sample number
                     else:
                         continue
-                    rxNode.rt.nextDict[dest] = next
-                    rxNode.rt.metricDict[dest] = metric
-                    rxNode.rt.seqDict[dest] = seq
-                    update = True
+                else:
+                    continue
             # new dest
             else:
                 rxNode.rt.destSet.add(dest)
-                rxNode.rt.nextDict[dest] = next
-                rxNode.rt.metricDict[dest] = metric
-                rxNode.rt.seqDict[dest] = seq
-                update = True
+            rxNode.rt.nextDict[dest] = next
+            rxNode.rt.metricDict[dest] = metric
+            rxNode.rt.seqDict[dest] = seq
+            update = True
+            # real-time topology
+            if rts == True and dest == 0:
+                rp.display_tree(nw.nodes)
+                rp.save()
+                rp.close()
         # broadcast table(beacon)
         if update and packet.ttl > 0:
             rxNode.rt.seqDict[rxNode.id] += 2

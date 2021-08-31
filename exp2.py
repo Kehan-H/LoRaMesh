@@ -34,6 +34,8 @@ pr.RM2 = 5
 pr.K = 5*60*1000
 pr.HL = 3
 
+pr.rts = False
+
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
 gw = nw.myNode(0,locsB[0],locsB[1])
