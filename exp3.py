@@ -49,6 +49,7 @@ for i in range(0,len(nw.nodes)):
 nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
+rp.figure()
 rp.plot_tree(nw.nodes)
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

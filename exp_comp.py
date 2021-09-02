@@ -3,6 +3,7 @@
 
 import random
 import numpy as np
+import simpy
 
 import network as nw
 import protocol as pr
@@ -13,11 +14,11 @@ import reporting as rp
 #
 
 # simulation settings
-simtime = 5*1000*60*60
+simtime = 10*1000*60*60
 random.seed(15)
 
 # network settings
-nw.EXP = rp.EXP = 4
+
 nw.SIGMA = 11.25
 
 nw.PTX = 12
@@ -36,31 +37,39 @@ pr.HL = 5
 
 pr.rts = False
 
-# base station initialization
-locsB = np.array([397.188492418693,226.186250701973])
-gw = nw.myNode(0,locsB[0],locsB[1])
-gw.genPacket(0,25,1)
-gw.genPacket(0,25,1)
-nw.nodes.append(gw)
 
-# end nodes initialization
-locsN = np.loadtxt('600x800.csv',delimiter=',')
-for i in range(0,locsN.shape[0]):
-    node = nw.myNode(i+1,locsN[i,0],locsN[i,1])
-    nw.nodes.append(node)
+def run_exp(EXP):
+    nw.EXP = rp.EXP = EXP
 
-# run nodes
-nw.env.process(nw.transceiver(nw.env,nw.nodes[0]))
-for i in range(1,len(nw.nodes)):
-    nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
-    nw.env.process(nw.generator(nw.env,nw.nodes[i]))
-nw.env.run(until=simtime) # start simulation
+    nw.nodes = []
+    nw.env = simpy.Environment()
 
-rp.print_data(nw.nodes)
-rp.figure()
-rp.plot_tree(nw.nodes)
-rp.figure()
-rp.hop_vs_pdr(nw.nodes)
+    # base station initialization
+    locsB = np.array([397.188492418693,226.186250701973])
+    gw = nw.myNode(0,locsB[0],locsB[1])
+    gw.genPacket(0,25,1)
+    gw.genPacket(0,25,1)
+    nw.nodes.append(gw)
+
+    # end nodes initialization
+    locsN = np.loadtxt('600x800.csv',delimiter=',')
+    for i in range(0,locsN.shape[0]):
+        node = nw.myNode(i+1,locsN[i,0],locsN[i,1])
+        nw.nodes.append(node)
+
+    # run nodes
+    nw.env.process(nw.transceiver(nw.env,nw.nodes[0]))
+    for i in range(1,len(nw.nodes)):
+        nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
+        nw.env.process(nw.generator(nw.env,nw.nodes[i]))
+    nw.env.run(until=simtime) # start simulation
+    return nw.nodes
+
+# plot
+rp.hop_vs_pdr(run_exp(1),'green')
+rp.hop_vs_pdr(run_exp(2),'red')
+rp.hop_vs_pdr(run_exp(4),'blue')
+rp.id_vs_pdr(nw.nodes)
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
