@@ -17,7 +17,7 @@ simtime = 5*1000*60*60
 random.seed(15)
 
 # network settings
-nw.EXP = 1
+nw.EXP = rp.EXP = 1
 nw.SIGMA = 11.25
 
 nw.PTX = 12
@@ -33,6 +33,8 @@ pr.RM1 = 0
 pr.RM2 = 0
 pr.K = 5*60*1000
 pr.HL = 3
+
+pr.rts = True
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
@@ -54,7 +56,7 @@ for i in range(1,len(nw.nodes)):
 nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
-rp.display_tree(nw.nodes)
+rp.plot_tree(nw.nodes)
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

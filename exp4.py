@@ -13,11 +13,11 @@ import reporting as rp
 #
 
 # simulation settings
-simtime = 1*1000*60*60
+simtime = 5*1000*60*60
 random.seed(15)
 
 # network settings
-nw.EXP = rp.EXP = 2
+nw.EXP = rp.EXP = 4
 nw.SIGMA = 11.25
 
 nw.PTX = 12
@@ -25,14 +25,14 @@ nw.SF = 7
 nw.CR = 4
 nw.BW = 125
 nw.FREQ = 900000000
-nw.TTL = 3
+nw.TTL = 10
 
 # protocol settings
 pr.n0 = 5
 pr.RM1 = 5
-pr.RM2 = 5
-pr.K = 60*1000
-pr.HL = 3
+pr.RM2 = 10
+pr.K = 5*60*1000
+pr.HL = 5
 
 pr.rts = True
 
@@ -57,7 +57,8 @@ for i in range(1,len(nw.nodes)):
 nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
-rp.display_stat(nw.nodes)
+rp.plot_tree(nw.nodes)
+rp.hop_vs_pdr(nw.nodes)
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

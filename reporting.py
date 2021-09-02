@@ -38,7 +38,7 @@ def display_graph(nodes):
     plt.show()
 
 # show tree topology
-def display_tree(nodes):
+def plot_tree(nodes):
     plt.figure()
     for node in nodes:
         route = node.pathTo(0)
@@ -49,14 +49,14 @@ def display_tree(nodes):
     plt.grid(True)
 
 # show hop vs PDR
-def display_stat(nodes):
+def hop_vs_pdr(nodes):
     plt.figure()
     for node in nodes:
         if node.id >= 0:
             try:
                 PDR = node.arr/node.pkts
-                if EXP in [1,2]:
-                    hops = node.rt.metricDict[0]
+                if EXP in [1,2,4]:
+                    hops = len(node.pathTo(0)) # to avoid lost updating, do not use metric directly
                 elif EXP == 3:
                     pass
                 else:

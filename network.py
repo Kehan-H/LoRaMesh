@@ -184,12 +184,14 @@ class myNode():
     def relayPacket(self,packet):
         copy = myPacket(packet.sn,packet.src,packet.dest,self,packet.plen,packet.type)
         copy.ttl = packet.ttl - 1
+        copy.passed.append(self.id)
         self.txBuffer.append(copy)
         self.relay += 1
 
     # generate packet
     def genPacket(self,dest,plen,type):
         packet = myPacket(self.pkts,self,dest,self,plen,type)
+        packet.passed.append(self.id)
         self.txBuffer.append(packet)
         if type == 0:
             self.pkts += 1
@@ -213,11 +215,14 @@ class myNode():
     # [next node, ... , destination node]
     def pathTo(self,dest):
         route = []
-        if EXP in [1,2]:
+        if EXP in [1,2,4]:
             if dest not in self.rt.destSet:
                 return route
             atNode = self
             while atNode.id != dest:
+                if len(route) > TTL:
+                    print('Loop Warning: hop count of route exceeds TTL')
+                    break
                 for node in nodes:
                     if node.id == atNode.rt.nextDict[dest]:
                         route.append(node)
@@ -238,7 +243,7 @@ class myNode():
     def getNbr(self):
         nbr = set()
         for other in nodes:
-            if EXP in [1,2]:
+            if EXP in [1,2,4]:
                 if other.id in self.rt.nextDict.values():
                     nbr.add(other)
             elif EXP == 3:
@@ -277,8 +282,8 @@ class myNode():
         def newRssi(self,txid,rssi):
             if txid in self.rssiRec.keys():
                 self.rssiRec[txid].append(rssi)
-                # 15 rssi
-                if len(self.rssiRec[txid]) > 15:
+                # maximum size
+                if len(self.rssiRec[txid]) > 25:
                     self.rssiRec[txid].pop(0)
             else:
                 self.rssiRec[txid] = [rssi]
@@ -314,6 +319,7 @@ class myPacket():
 
         self.appearTime = None
         self.rssiAt = {} # rssi at rx nodes
+        self.passed = [] # passed nodes
     
     # channel estimation - compute rssi at rx nodes
     # call this function when packet is transmitted
@@ -353,7 +359,7 @@ def transceiver(env,txNode):
         if txNode.mode == 1:
             if EXP == 1:
                 act = pr.proactive1(txNode,env.now)
-            elif EXP == 2:
+            elif EXP in [2,4]:
                 act = pr.proactive2(txNode,env.now)
             elif EXP == 3:
                 act = pr.proactive3(txNode,env.now)
@@ -387,11 +393,13 @@ def transceiver(env,txNode):
                         pr.reactive2(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     elif EXP == 3:
                         pr.reactive3(packet,txNode,nodes[i],packet.rssiAt[nodes[i]],env.now)
+                    elif EXP == 4:
+                        pr.reactive4(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     else:
                         raise ValueError('EXP number ' + EXP + ' is not defined')
                 # catch losing condition when node is critical
                 else:
-                    if EXP in [1,2]:
+                    if EXP in [1,2,4]:
                         cl.catch1(packet,txNode,nodes[i],result)
                     elif EXP == 3:
                         pass
