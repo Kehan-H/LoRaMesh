@@ -57,9 +57,9 @@ for i in range(1,len(nw.nodes)):
 nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
-rp.figure()
+rp.plt.figure()
 rp.plot_tree(nw.nodes)
-rp.figure()
+rp.plt.figure()
 rp.hop_vs_pdr(nw.nodes)
 rp.show()
 

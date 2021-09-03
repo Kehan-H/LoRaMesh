@@ -98,9 +98,6 @@ def id_vs_pdr(nodes):
 def show():
     plt.show()
 
-def figure():
-    plt.figure
-
 def close():
     plt.close()
 
