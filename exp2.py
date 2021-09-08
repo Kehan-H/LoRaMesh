@@ -34,7 +34,7 @@ pr.RM2 = 10
 pr.K = 5*60*1000
 pr.HL = 5
 
-pr.rts = True
+pr.rts = False
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
@@ -56,11 +56,11 @@ for i in range(1,len(nw.nodes)):
     nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
-rp.print_data(nw.nodes)
-rp.plt.figure()
-rp.plot_tree(nw.nodes)
-rp.plt.figure()
-rp.hop_vs_pdr(nw.nodes)
+rp.print_data()
+rp.figure()
+rp.plot_tree()
+rp.figure()
+rp.hop_vs_pdr()
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

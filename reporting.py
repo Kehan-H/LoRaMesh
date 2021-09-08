@@ -1,13 +1,12 @@
 import matplotlib.pyplot as plt
 import glob
+import network as nw
 
 from numpy.core.fromnumeric import mean
 
-EXP = 0
-
 # show statistics
-def print_data(nodes):
-    for node in nodes:
+def print_data():
+    for node in nw.nodes:
         if node.id >= 0:
             route = node.pathTo(0)
             routeStr = ''
@@ -29,8 +28,8 @@ def print_data(nodes):
             print('\n')
 
 # show topology
-def display_graph(nodes):
-    for node in nodes:
+def display_graph():
+    for node in nw.nodes:
         nbr = node.getNbr()
         for n in nbr:
             plt.plot([node.x,n.x],[node.y,n.y],'c-',zorder=0)
@@ -39,8 +38,8 @@ def display_graph(nodes):
     plt.grid(True)
 
 # show tree topology
-def plot_tree(nodes):
-    for node in nodes:
+def plot_tree():
+    for node in nw.nodes:
         route = node.pathTo(0)
         if route:
             plt.plot([node.x,route[0].x],[node.y,route[0].y],'c-',zorder=0)
@@ -49,22 +48,22 @@ def plot_tree(nodes):
     plt.grid(True)
 
 # show hop vs PDR
-def hop_vs_pdr(nodes,color='red'):
+def hop_vs_pdr(color='red'):
     # dictionary of lists; hops as keys
     pdrDict = {}
-    for node in nodes:
+    for node in nw.nodes:
         if node.id == 0:
             continue
         if node.pkts != 0:
             pdr = node.arr/node.pkts
         else:
             pdr = 0
-        if EXP in [1,2,4]:
+        if nw.EXP in [1,2,4,5]:
                 hops = len(node.pathTo(0)) # lost updating exists, do not use metric directly
-        elif EXP == 3:
+        elif nw.EXP == 3:
             pass
         else:
-            pass
+            raise ValueError('EXP number ' + nw.EXP + ' is not defined')
         plt.scatter(hops,pdr,color=color,zorder=5)
         plt.annotate(node.id,(hops,pdr),color='black',zorder=10)
         if hops not in pdrDict.keys():
@@ -79,27 +78,20 @@ def hop_vs_pdr(nodes,color='red'):
     plt.ylabel('PDR')
     plt.grid(True)
 
-def id_vs_pdr(nodes):
+def id_vs_pdr():
     ids = []
     pdrs = []
-    for node in nodes:
+    for node in nw.nodes:
         if node.id >= 0:
             try:
                 pdrs.append(node.arr/node.pkts)
                 ids.append(node.id)
             except:
                 pass
-    plt.figure()
     plt.bar(ids,pdrs,tick_label=ids)
     plt.xlabel('Node ID')
     plt.ylabel('PDR')
     plt.grid(axis = 'y')
-
-def show():
-    plt.show()
-
-def close():
-    plt.close()
 
 def save():
     max = 0
@@ -108,3 +100,12 @@ def save():
         if idx >= max:
             max = idx + 1
     plt.savefig('topos/%d.png'%max)
+
+def show():
+    plt.show(block=True)
+
+def close():
+    plt.close()
+
+def figure():
+    plt.figure()

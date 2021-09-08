@@ -215,7 +215,7 @@ class myNode():
     # [next node, ... , destination node]
     def pathTo(self,dest):
         route = []
-        if EXP in [1,2,4]:
+        if EXP in [1,2,4,5]:
             if dest not in self.rt.destSet:
                 return route
             atNode = self
@@ -243,7 +243,7 @@ class myNode():
     def getNbr(self):
         nbr = set()
         for other in nodes:
-            if EXP in [1,2,4]:
+            if EXP in [1,2,4,5]:
                 if other.id in self.rt.nextDict.values():
                     nbr.add(other)
             elif EXP == 3:
@@ -359,7 +359,7 @@ def transceiver(env,txNode):
         if txNode.mode == 1:
             if EXP == 1:
                 act = pr.proactive1(txNode,env.now)
-            elif EXP in [2,4]:
+            elif EXP in [2,4,5]:
                 act = pr.proactive2(txNode,env.now)
             elif EXP == 3:
                 act = pr.proactive3(txNode,env.now)
@@ -395,6 +395,8 @@ def transceiver(env,txNode):
                         pr.reactive3(packet,txNode,nodes[i],packet.rssiAt[nodes[i]],env.now)
                     elif EXP == 4:
                         pr.reactive4(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
+                    elif EXP == 5:
+                        pr.reactive5(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     else:
                         raise ValueError('EXP number ' + EXP + ' is not defined')
                 # catch losing condition when node is critical

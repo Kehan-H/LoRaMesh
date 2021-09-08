@@ -1,6 +1,5 @@
 import random
 import reporting as rp
-import network as nw
 
 #
 # CONSTANTS
@@ -196,7 +195,7 @@ def reactive1(packet,txNode,rxNode,rssi):
             update = True
             # real-time topology
             if rts == True and dest == 0:
-                rp.plot_tree(nw.nodes)
+                rp.plot_tree()
                 rp.save()
                 rp.close()
         # broadcast table(beacon)
@@ -264,7 +263,7 @@ def reactive2(packet,txNode,rxNode,rssi):
             update = True
             # real-time topology
             if rts == True and dest == 0:
-                rp.plot_tree(nw.nodes)
+                rp.plot_tree()
                 rp.save()
                 rp.close()
         # broadcast table(beacon)
@@ -406,7 +405,7 @@ def reactive4(packet,txNode,rxNode,rssi):
                     elif sample_num >= len(rxNode.rt.rssiRec[old]) and avg_rssi > old_avg:
                             pass
                     else:
-                        continue        
+                        continue
             # new dest
             else:
                 rxNode.rt.destSet.add(dest)
@@ -416,7 +415,80 @@ def reactive4(packet,txNode,rxNode,rssi):
             update = True
             # real-time topology
             if rts == True and dest == 0:
-                rp.plot_tree(nw.nodes)
+                rp.plot_tree()
+                rp.save()
+                rp.close()
+        # broadcast table(beacon)
+        if update and packet.ttl > 0:
+            rxNode.rt.seqDict[rxNode.id] += 2
+            rxNode.relayPacket(packet)
+    else:
+        raise ValueError('undefined packet type')
+
+# p-csma + dsdv (with memory)
+def reactive5(packet,txNode,rxNode,rssi):
+    if packet.type == 0:
+        # not supposed to receive, wasted
+        if txNode.rt.nextDict[packet.dest] != rxNode.id:
+            pass
+        # arrive at next/dest
+        else:
+            if packet.dest == rxNode.id:
+                packet.src.arr += 1
+                if packet.src.arr > packet.src.pkts:
+                    raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
+            elif packet.ttl > 0:
+                rxNode.relayPacket(packet)
+            # pkt runs out of ttl before reaching dest
+            else:
+                pass
+    # routing beacon
+    elif packet.type == 1:
+        # update routing table
+        rxNode.rt.newRssi(txNode.id,rssi)
+        update = False # flag needed because there can be multiple entries to update
+        next = txNode.id
+        sample_num = len(rxNode.rt.rssiRec[next])
+        avg_rssi =  sum(rxNode.rt.rssiRec[next])/sample_num
+        # dsdv with hysteresis
+        dests = (dest for dest in txNode.rt.destSet if dest != rxNode.id)
+        for dest in dests:
+            # prevent loop
+            if rxNode in txNode.pathTo(dest):
+                continue
+            metric = txNode.rt.metricDict[dest] + 1
+            seq = txNode.rt.seqDict[dest]
+            # existing dest
+            if dest in rxNode.rt.destSet:
+                if seq < rxNode.rt.seqDict[dest] or metric > HL:
+                    continue
+                else:
+                    # conditionally update established routes (converge + diverge)
+                    old = rxNode.rt.nextDict[dest]
+                    diff = avg_rssi - sum(rxNode.rt.rssiRec[old])/len(rxNode.rt.rssiRec[old])
+                    # if metric is better and rssi is not too worse, allow update
+                    if diff > -RM1 and metric < rxNode.rt.metricDict[dest]:
+                        pass
+                    # if metric is not too worse and rssi is significantly better, reroute to ensure link quality
+                    elif diff > RM2:
+                        N = round(diff/RM2)
+                        if metric <= rxNode.rt.metricDict[dest] + N:
+                            pass
+                        else:
+                            continue
+                    # reject update if rssi or metric is bad
+                    else:
+                        continue    
+            # new dest
+            else:
+                rxNode.rt.destSet.add(dest)
+            rxNode.rt.nextDict[dest] = next
+            rxNode.rt.metricDict[dest] = metric
+            rxNode.rt.seqDict[dest] = seq
+            update = True
+            # real-time topology
+            if rts == True and dest == 0:
+                rp.plot_tree()
                 rp.save()
                 rp.close()
         # broadcast table(beacon)

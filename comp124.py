@@ -3,7 +3,6 @@
 
 import random
 import numpy as np
-import simpy
 
 import network as nw
 import protocol as pr
@@ -42,7 +41,7 @@ def run_exp(EXP):
     nw.EXP = rp.EXP = EXP
 
     nw.nodes = []
-    nw.env = simpy.Environment()
+    nw.env = nw.simpy.Environment()
 
     # base station initialization
     locsB = np.array([397.188492418693,226.186250701973])
@@ -66,10 +65,15 @@ def run_exp(EXP):
     return nw.nodes
 
 # plot
-rp.hop_vs_pdr(run_exp(1),'green')
-rp.hop_vs_pdr(run_exp(2),'red')
-rp.hop_vs_pdr(run_exp(4),'blue')
-rp.id_vs_pdr(nw.nodes)
+rp.figure()
+run_exp(1)
+rp.hop_vs_pdr('green')
+run_exp(2)
+rp.hop_vs_pdr('red')
+run_exp(4)
+rp.hop_vs_pdr('blue')
+rp.figure()
+rp.id_vs_pdr()
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
