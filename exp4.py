@@ -31,10 +31,10 @@ nw.TTL = 10
 pr.n0 = 5
 pr.RM1 = 10
 pr.RM2 = 20
-pr.K = 5*60*1000
+pr.QTH = 5*60*1000
 pr.HL = 5
 
-pr.rts = True
+pr.rts = False
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])

@@ -401,10 +401,12 @@ def transceiver(env,txNode):
                         raise ValueError('EXP number ' + EXP + ' is not defined')
                 # catch losing condition when node is critical
                 else:
-                    if EXP in [1,2,4]:
+                    if EXP in [1,2,4,5]:
                         cl.catch1(packet,txNode,nodes[i],result)
                     elif EXP == 3:
-                        pass
+                        cl.catch3(packet,txNode,nodes[i],result)
+                    else:
+                        raise ValueError('EXP number ' + EXP + ' is not defined')
             txNode.modeTo(1)
             yield env.timeout(act[2])
         # to sleep

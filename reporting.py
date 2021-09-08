@@ -1,8 +1,7 @@
+from operator import le
 import matplotlib.pyplot as plt
 import glob
 import network as nw
-
-from numpy.core.fromnumeric import mean
 
 # show statistics
 def print_data():
@@ -38,9 +37,9 @@ def display_graph():
     plt.grid(True)
 
 # show tree topology
-def plot_tree():
+def plot_tree(dest=0):
     for node in nw.nodes:
-        route = node.pathTo(0)
+        route = node.pathTo(dest)
         if route:
             plt.plot([node.x,route[0].x],[node.y,route[0].y],'c-',zorder=0)
         plt.scatter(node.x,node.y,color='red',zorder=5)
@@ -58,19 +57,14 @@ def hop_vs_pdr(color='red'):
             pdr = node.arr/node.pkts
         else:
             pdr = 0
-        if nw.EXP in [1,2,4,5]:
-                hops = len(node.pathTo(0)) # lost updating exists, do not use metric directly
-        elif nw.EXP == 3:
-            pass
-        else:
-            raise ValueError('EXP number ' + nw.EXP + ' is not defined')
+        hops = len(node.pathTo(0)) # do not use metric directly (metric can be outdated when RT update fails)
         plt.scatter(hops,pdr,color=color,zorder=5)
         plt.annotate(node.id,(hops,pdr),color='black',zorder=10)
         if hops not in pdrDict.keys():
             pdrDict[hops] = []
         pdrDict[hops].append(pdr)
     for key in pdrDict.keys():
-        pdrDict[key] = mean(pdrDict[key])
+        pdrDict[key] = sum(pdrDict[key])/len(pdrDict[key]) # mean
     keys = list(pdrDict.keys())
     values = list(pdrDict.values())
     plt.plot(keys,values,marker='D',color=color)

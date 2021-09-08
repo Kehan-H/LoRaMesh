@@ -31,7 +31,7 @@ nw.TTL = 10
 pr.n0 = 5
 pr.RM1 = 5
 pr.RM2 = 10
-pr.K = 5*60*1000
+pr.QTH = 5*60*1000
 pr.HL = 5
 
 pr.rts = True

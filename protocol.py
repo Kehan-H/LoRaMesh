@@ -17,7 +17,7 @@ RM1 = 5
 RM2 = 10
 
 # time threshold for not receiving from gw
-K = 5*60*1000
+QTH = 5*60*1000
 
 # hop limit
 HL = 5
@@ -131,7 +131,7 @@ def proactive3(txNode,t0):
     # end devices
     elif txNode.id > 0:
         # remove parent if not receive from GW for k ms
-        if txNode.rt.joined and (t0 - txNode.lrt >= K):
+        if txNode.rt.joined and (t0 - txNode.lrt >= QTH):
             txNode.rt.joined = False
             txNode.rt.parent = None
             txNode.rt.hops = None

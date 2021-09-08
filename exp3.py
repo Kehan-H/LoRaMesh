@@ -18,8 +18,9 @@ random.seed(15)
 
 # network settings
 nw.EXP = 3
+nw.SIGMA = 11.25
 
-nw.PTX = 8
+nw.PTX = 12
 nw.SF = 7
 nw.CR = 4
 nw.BW = 125
@@ -28,9 +29,12 @@ nw.TTL = 10
 
 # protocol settings
 pr.n0 = 5
-pr.RM = 22.5
-pr.K = 5*60*1000
-pr.HL = 3
+pr.RM1 = 10
+pr.RM2 = 20
+pr.QTH = 5*60*1000
+pr.HL = 5
+
+pr.rts = False
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
@@ -48,9 +52,12 @@ for i in range(0,len(nw.nodes)):
     nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
-rp.print_data(nw.nodes)
+rp.print_data()
 rp.figure()
-rp.plot_tree(nw.nodes)
+rp.plot_tree()
+rp.figure()
+rp.hop_vs_pdr()
+rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
 # sent = sum(n.sent for n in nodes)

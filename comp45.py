@@ -29,16 +29,16 @@ nw.TTL = 10
 
 # protocol settings
 pr.n0 = 5
-pr.RM1 = 5
-pr.RM2 = 10
-pr.K = 5*60*1000
+pr.RM1 = 10
+pr.RM2 = 20
+pr.QTH = 5*60*1000
 pr.HL = 5
 
 pr.rts = False
 
 
 def run_exp(EXP):
-    nw.EXP = rp.EXP = EXP
+    nw.EXP = EXP
 
     nw.nodes = []
     nw.env = nw.simpy.Environment()
@@ -62,7 +62,6 @@ def run_exp(EXP):
         nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
         nw.env.process(nw.generator(nw.env,nw.nodes[i]))
     nw.env.run(until=simtime) # start simulation
-    return nw.nodes
 
 # plot
 rp.figure()
