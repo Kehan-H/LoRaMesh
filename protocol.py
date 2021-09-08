@@ -426,6 +426,7 @@ def reactive4(packet,txNode,rxNode,rssi):
         raise ValueError('undefined packet type')
 
 # p-csma + dsdv (with memory)
+# incomplete
 def reactive5(packet,txNode,rxNode,rssi):
     if packet.type == 0:
         # not supposed to receive, wasted
@@ -470,12 +471,8 @@ def reactive5(packet,txNode,rxNode,rssi):
                     if diff > -RM1 and metric < rxNode.rt.metricDict[dest]:
                         pass
                     # if metric is not too worse and rssi is significantly better, reroute to ensure link quality
-                    elif diff > RM2:
-                        N = round(diff/RM2)
-                        if metric <= rxNode.rt.metricDict[dest] + N:
-                            pass
-                        else:
-                            continue
+                    elif diff > RM2 and metric <= rxNode.rt.metricDict[dest] + round(diff/RM2):
+                        pass
                     # reject update if rssi or metric is bad
                     else:
                         continue    
