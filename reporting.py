@@ -56,7 +56,7 @@ def hop_vs_pdr(nodes,color='tab:blue'):
         else:
             pdr = 0
         hops = len(node.pathTo(0)) # do not use metric directly (metric can be outdated when RT update fails)
-        plt.scatter(hops,pdr,color=color,zorder=5)
+        plt.scatter(hops,pdr,color=color,marker='x',zorder=5)
         plt.annotate(node.id,(hops,pdr),color='black',zorder=10)
         if hops not in pdrDict.keys():
             pdrDict[hops] = []
@@ -65,7 +65,7 @@ def hop_vs_pdr(nodes,color='tab:blue'):
         pdrDict[key] = sum(pdrDict[key])/len(pdrDict[key]) # mean
     keys = list(pdrDict.keys())
     values = list(pdrDict.values())
-    plt.plot(keys,values,marker='D',color=color)
+    plt.plot(keys,values,marker='o',color=color)
     plt.xlabel('Number of Hops')
     plt.ylabel('PDR')
     plt.grid(True)

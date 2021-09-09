@@ -1,5 +1,6 @@
 import random
 import reporting as rp
+import network as nw
 
 #
 # CONSTANTS
@@ -100,52 +101,55 @@ def proactive3(txNode,t0):
     dt2 = 0
     # GW
     if txNode.id == 0:
-        # check response
-        if txNode.rt.qlst:
+        # query has been sent, check response
+        if txNode.rt.qlst and not txNode.txBuffer:
             id = txNode.rt.qlst.pop(0)
+            # received
+            if txNode.rt.resp[id]:
+                txNode.rt.tout[id] = 0
+                txNode.rt.resp[id] = False
             # timeout
-            if txNode.rt.resp[id] == False:
+            else:
                 txNode.rt.tout[id] += 1
                 if txNode.rt.tout[id] > 5:
                     txNode.rt.tout.pop(id)
                     txNode.rt.childs.remove(id)
-            # received
-            else:
-                txNode.rt.tout[id] = 0
-                txNode.rt.resp[id] = False
-        # send query
+        # generate query
         if txNode.rt.childs:
             # queue is empty. can start a new round of query
             if not txNode.rt.qlst:
                 txNode.rt.qlst = list(txNode.rt.childs)
-            txNode.genPacket(0,plenA,txNode.rt.qlst[0])
-            nxMode = 2
-            dt1 = 0
-            dt2 = 1000 # wait 1s for response
-        # send beacon
+            txNode.genPacket(txNode.rt.qlst[0],plenA,2)
+        # generate beacon
         else:
-            nxMode = 2
-            txNode.genPacket(0,25,1)
-            dt2 = 60*1000
-
+            txNode.genPacket(0,plenC,1)
     # end devices
     elif txNode.id > 0:
-        # remove parent if not receive from GW for k ms
-        if txNode.rt.joined and (t0 - txNode.lrt >= QTH):
+        # remove parent if not receive from GW for QTH ms
+        if txNode.rt.joined and (t0 - txNode.rt.lrt >= QTH):
             txNode.rt.joined = False
             txNode.rt.parent = None
             txNode.rt.hops = None
-        
-        # has packet to transmit
-        if txNode.txBuffer:
-            nxMode = 2
-        # nothing to transmit
-        else:
-            nxMode = 1
-            dt1 = 200 # refresh
-    # undefined device id == 0 
     else:
         raise ValueError('undefined node id')
+
+    # has packet to transmit
+    if txNode.txBuffer:
+        nxMode = 2
+        # beacon
+        if txNode.txBuffer[0].type == 1:
+            dt2 = 60*1000
+        elif txNode.txBuffer[0].type == 2:
+            dt2 = 2000 # wait 2s for response
+        # data/confirm/request
+        elif txNode.txBuffer[0].type in [0,3,4]:
+            dt2 = 0
+        else:
+            raise ValueError('undefined packet type')
+    # nothing to transmit
+    else:
+        nxMode = 1
+        dt1 = 200 # refresh
     return nxMode,dt1,dt2
 
 #
@@ -195,7 +199,7 @@ def reactive1(packet,txNode,rxNode,rssi):
             update = True
             # real-time topology
             if rts == True and dest == 0:
-                rp.plot_tree()
+                rp.plot_tree(nw.nodes)
                 rp.save()
                 rp.close()
         # broadcast table(beacon)
@@ -263,7 +267,7 @@ def reactive2(packet,txNode,rxNode,rssi):
             update = True
             # real-time topology
             if rts == True and dest == 0:
-                rp.plot_tree()
+                rp.plot_tree(nw.nodes)
                 rp.save()
                 rp.close()
         # broadcast table(beacon)
@@ -274,23 +278,18 @@ def reactive2(packet,txNode,rxNode,rssi):
         raise ValueError('undefined packet type')
 
 # query-based
-def reactive3(packet,txNode,rxNode,dR,t0):
+def reactive3(packet,txNode,rxNode,t0):
     # GW
     if rxNode.id == 0:
         # data
         if packet.type == 0:
             # arrive at dest
-            if txNode.parent == 0:
+            if txNode.rt.parent == 0:
                 packet.src.arr += 1
-                rxNode.rt.resp[rxNode] = True
+                rxNode.rt.resp[packet.src.id] = True
                 if packet.src.arr > packet.src.pkts:
                     raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
-        # join request
-        elif packet.type == 3:
-            rxNode.genPacket(packet.src.id,plenA,4)
-            rxNode.rt.childs.add(packet.src.id)
-            rxNode.rt.tout[id] = 0
-        # beacon/query/confirm
+        # beacon/query/confirm/join request
         else:
             pass
     # end devices
@@ -299,18 +298,27 @@ def reactive3(packet,txNode,rxNode,dR,t0):
         if not rxNode.rt.joined:
             # waiting for confirmation
             if rxNode.rt.parent != None:
-                # implies this is a confirmation packet
+                # implies this is a confirmation packet or a query
                 if packet.dest == rxNode.id:
                     rxNode.rt.joined = True
                     rxNode.rt.lrt = t0
-                elif t0 - txNode.lrt > 5000:
+                    # query packet, directly reply data (implies confirmation is lost)
+                    if packet.type == 2:
+                        rxNode.genPacket(0,plenB,0)
+                    # real-time topology
+                    if rts == True:
+                        rp.plot_tree(nw.nodes)
+                        rp.save()
+                        rp.close()
+                elif t0 - txNode.rt.lrt > 60*1000:
                     rxNode.rt.parent = None
                 else:
                     pass
             # send join request
-            elif packet.type in [0,1,2] and dR > RM1 and txNode.rt.hops <= HL:
+            elif packet.type in [0,1,2] and txNode.rt.hops < HL:
                 rxNode.genPacket(0,plenA,3)
                 rxNode.rt.parent = txNode.id
+                rxNode.rt.hops = txNode.rt.hops + 1
                 rxNode.rt.lrt = t0
             else:
                 pass
@@ -329,26 +337,32 @@ def reactive3(packet,txNode,rxNode,dR,t0):
                     rxNode.relayPacket(packet)
                 else:
                     pass
-            # join request
-            elif packet.type == 3:
-                if txNode.rt.parent != rxNode.id:
-                    pass
-                elif packet.src.id != txNode.id:
-                    rxNode.relayPacket(packet)
-                    rxNode.rt.childs.add(packet.src.id)
-                # direct link
-                elif dR > RM1:
-                    rxNode.genPacket(packet.src.id,plenA,4) # confirm
-                    rxNode.relayPacket(packet)
-                    rxNode.rt.childs.add(packet.src.id)
-                else:
-                    pass
-            # beacon/confirm
+            # beacon/confirm/join request
             else:
                 pass
     # undefined device id == 0 
     else:
         raise ValueError('undefined node id')
+    
+    # join request
+    if packet.type == 3:
+        if txNode.rt.parent == rxNode.id:
+            # arrive at GW
+            if rxNode.id == 0:
+                rxNode.rt.tout[packet.src.id] = 0
+                rxNode.rt.resp[packet.src.id] = False
+            # relay
+            else:
+                rxNode.relayPacket(packet)
+            # direct link
+            if packet.src.id == txNode.id:
+                rxNode.genPacket(packet.src.id,plenA,4) # confirm
+            # indirect link
+            else:
+                pass
+            rxNode.rt.childs.add(packet.src.id)
+        else:
+            pass
 
 # p-csma + dsdv (with memory)
 def reactive4(packet,txNode,rxNode,rssi):
@@ -415,7 +429,7 @@ def reactive4(packet,txNode,rxNode,rssi):
             update = True
             # real-time topology
             if rts == True and dest == 0:
-                rp.plot_tree()
+                rp.plot_tree(nw.nodes)
                 rp.save()
                 rp.close()
         # broadcast table(beacon)
@@ -467,11 +481,11 @@ def reactive5(packet,txNode,rxNode,rssi):
                     # conditionally update established routes (converge + diverge)
                     old = rxNode.rt.nextDict[dest]
                     diff = avg_rssi - sum(rxNode.rt.rssiRec[old])/len(rxNode.rt.rssiRec[old])
-                    # if metric is better and rssi is not too worse, allow update
-                    if diff > -RM1 and metric < rxNode.rt.metricDict[dest]:
-                        pass
                     # if metric is not too worse and rssi is significantly better, reroute to ensure link quality
-                    elif diff > RM2 and metric <= rxNode.rt.metricDict[dest] + round(diff/RM2):
+                    if diff > RM2 and metric <= rxNode.rt.metricDict[dest] + round(diff/RM2):
+                        pass
+                    # if metric is better and rssi is not too worse, allow update
+                    elif diff > -RM1 and metric < rxNode.rt.metricDict[dest]:
                         pass
                     # reject update if rssi or metric is bad
                     else:
@@ -485,7 +499,7 @@ def reactive5(packet,txNode,rxNode,rssi):
             update = True
             # real-time topology
             if rts == True and dest == 0:
-                rp.plot_tree()
+                rp.plot_tree(nw.nodes)
                 rp.save()
                 rp.close()
         # broadcast table(beacon)

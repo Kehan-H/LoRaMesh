@@ -29,16 +29,17 @@ nw.TTL = 10
 
 # protocol settings
 pr.n0 = 5
-pr.RM1 = 10
-pr.RM2 = 20
+pr.RM1 = 0
+pr.RM2 = 0
 pr.QTH = 5*60*1000
 pr.HL = 5
 
-pr.rts = False
+pr.rts = True
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
 gw = nw.myNode(0,locsB[0],locsB[1])
+gw.rt.hops = 0
 nw.nodes.append(gw)
 
 # end nodes initialization

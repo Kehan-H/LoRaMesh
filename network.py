@@ -392,7 +392,7 @@ def transceiver(env,txNode):
                     elif EXP == 2:
                         pr.reactive2(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     elif EXP == 3:
-                        pr.reactive3(packet,txNode,nodes[i],packet.rssiAt[nodes[i]],env.now)
+                        pr.reactive3(packet,txNode,nodes[i],env.now)
                     elif EXP == 4:
                         pr.reactive4(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     elif EXP == 5:
@@ -404,7 +404,8 @@ def transceiver(env,txNode):
                     if EXP in [1,2,4,5]:
                         cl.catch1(packet,txNode,nodes[i],result)
                     elif EXP == 3:
-                        cl.catch3(packet,txNode,nodes[i],result)
+                        pass
+                        #cl.catch3(packet,txNode,nodes[i],result)
                     else:
                         raise ValueError('EXP number ' + EXP + ' is not defined')
             txNode.modeTo(1)
