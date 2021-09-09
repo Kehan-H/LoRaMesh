@@ -52,11 +52,11 @@ for i in range(0,len(nw.nodes)):
     nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
-rp.print_data()
+rp.print_data(nw.nodes)
 rp.figure()
-rp.plot_tree()
+rp.plot_tree(nw.nodes)
 rp.figure()
-rp.hop_vs_pdr()
+rp.hop_vs_pdr(nw.nodes)
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

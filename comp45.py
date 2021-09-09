@@ -63,12 +63,14 @@ def run_exp(EXP):
         nw.env.process(nw.generator(nw.env,nw.nodes[i]))
     nw.env.run(until=simtime) # start simulation
 
+    return nw.nodes
+
 # plot
+nodes4=run_exp(4)
+nodes5=run_exp(5)
 rp.figure()
-run_exp(4)
-rp.hop_vs_pdr('green')
-run_exp(5)
-rp.hop_vs_pdr('red')
+rp.hop_vs_pdr(nodes4,color='green')
+rp.hop_vs_pdr(nodes5,color='red')
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

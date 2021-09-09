@@ -14,7 +14,7 @@ import reporting as rp
 
 # simulation settings
 simtime = 5*1000*60*60
-random.seed(15)
+#random.seed(15)
 
 # network settings
 
@@ -63,20 +63,22 @@ def run_exp(EXP):
         nw.env.process(nw.generator(nw.env,nw.nodes[i]))
     nw.env.run(until=simtime) # start simulation
 
-    return nw.nodes
-
 # plot
-nodes1=run_exp(1)
-nodes2=run_exp(2)
-nodes4=run_exp(4)
 rp.figure()
-rp.hop_vs_pdr(nodes1,color='tab:red')
-rp.hop_vs_pdr(nodes2,color='tab:green')
-rp.hop_vs_pdr(nodes4,color='tab:blue')
+run_exp(1)
+rp.hop_vs_pdr(nw.nodes,color='tab:red')
+run_exp(2)
+rp.hop_vs_pdr(nw.nodes,color='tab:green')
+run_exp(4)
+rp.hop_vs_pdr(nw.nodes,color='tab:blue')
+
 rp.figure()
-rp.id_vs_pdr(nodes1,color='tab:red',shift=-0.15,width=0.15)
-rp.id_vs_pdr(nodes2,color='tab:green',shift=0,width=0.15)
-rp.id_vs_pdr(nodes4,color='tab:blue',shift=0.15,width=0.15)
+run_exp(1)
+rp.id_vs_pdr(nw.nodes,color='tab:red',shift=-0.15,width=0.15)
+run_exp(2)
+rp.id_vs_pdr(nw.nodes,color='tab:green',shift=0,width=0.15)
+run_exp(4)
+rp.id_vs_pdr(nw.nodes,color='tab:blue',shift=0.15,width=0.15)
 
 rp.show()
 

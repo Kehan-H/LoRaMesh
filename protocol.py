@@ -113,13 +113,8 @@ def proactive3(txNode,t0):
             else:
                 txNode.rt.tout[id] = 0
                 txNode.rt.resp[id] = False
-        # send beacon
-        if len(txNode.rt.childs) == 0:
-            nxMode = 2
-            txNode.genPacket(0,25,1)
-            dt2 = 60*1000
         # send query
-        else:
+        if txNode.rt.childs:
             # queue is empty. can start a new round of query
             if not txNode.rt.qlst:
                 txNode.rt.qlst = list(txNode.rt.childs)
@@ -127,6 +122,11 @@ def proactive3(txNode,t0):
             nxMode = 2
             dt1 = 0
             dt2 = 1000 # wait 1s for response
+        # send beacon
+        else:
+            nxMode = 2
+            txNode.genPacket(0,25,1)
+            dt2 = 60*1000
 
     # end devices
     elif txNode.id > 0:
@@ -391,7 +391,7 @@ def reactive4(packet,txNode,rxNode,rssi):
                     old = rxNode.rt.nextDict[dest]
                     old_avg = sum(rxNode.rt.rssiRec[old])/len(rxNode.rt.rssiRec[old])
                     # conditionally update established routes (converge + diverge)
-                    if sample_num >= len(rxNode.rt.rssiRec[old]) >= 10:
+                    if sample_num >= len(rxNode.rt.rssiRec[old]) >= 5:
                         # if metric is better and rssi is not too worse, allow update
                         if metric < rxNode.rt.metricDict[dest] and (avg_rssi > old_avg - RM1):
                             pass
