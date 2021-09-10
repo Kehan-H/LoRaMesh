@@ -4,8 +4,8 @@
 import random
 import numpy as np
 
-import network as nw
-import protocol as pr
+import network_query as nw
+import protocol_temp as pr
 import reporting as rp
 
 #
@@ -18,7 +18,7 @@ random.seed(15)
 
 # network settings
 nw.EXP = 3
-nw.SIGMA = 11.25
+nw.SIGMA = 2
 
 nw.PTX = 12
 nw.SF = 7

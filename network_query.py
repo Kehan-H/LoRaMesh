@@ -10,9 +10,6 @@ import catchloss as cl
 # CONTANTS
 #
 
-# experiment no.
-EXP = 0
-
 # default tx param
 PTX = 5
 SF = 7
@@ -215,46 +212,25 @@ class myNode():
     # [next node, ... , destination node]
     def pathTo(self,dest):
         route = []
-        if EXP in [1,2,4,5]:
-            if dest not in self.rt.destSet:
-                return route
-            atNode = self
-            while atNode.id != dest:
-                if len(route) > TTL:
-                    print('Loop Warning: hop count of route exceeds TTL')
-                    break
-                for node in nodes:
-                    if node.id == atNode.rt.nextDict[dest]:
-                        route.append(node)
-                        atNode = node
-        elif EXP == 3:
-            if self.rt.parent == None:
-                return route
-            atNode = self
-            counter = 0
-            while atNode.id != 0:
-                counter = counter + 1
-                if counter > TTL:
-                    break
-                for node in nodes:
-                    if node.id == atNode.rt.parent:
-                        route.append(node)
-                        atNode = node
-        else:
-            raise ValueError('EXP number ' + EXP + ' is not defined') 
+        if self.rt.parent == None:
+            return route
+        atNode = self
+        counter = 0
+        while atNode.id != 0:
+            counter = counter + 1
+            if counter > TTL:
+                break
+            for node in nodes:
+                if node.id == atNode.rt.parent:
+                    route.append(node)
+                    atNode = node
         return route
     
     def getNbr(self):
         nbr = set()
         for other in nodes:
-            if EXP in [1,2,4,5]:
-                if other.id in self.rt.nextDict.values():
-                    nbr.add(other)
-            elif EXP == 3:
-                if other.id == self.rt.parent:
-                    nbr.add(other)
-            else:
-                raise ValueError('EXP number ' + EXP + ' is not defined')
+            if other.id == self.rt.parent:
+                nbr.add(other)
         return nbr
 
     # this function creates a routing table (associated with a node)
@@ -361,14 +337,7 @@ def transceiver(env,txNode):
     while True:
         # to receive
         if txNode.mode == 1:
-            if EXP == 1:
-                act = pr.proactive1(txNode,env.now)
-            elif EXP in [2,4,5]:
-                act = pr.proactive2(txNode,env.now)
-            elif EXP == 3:
-                act = pr.proactive3(txNode,env.now)
-            else:
-                raise ValueError('EXP number ' + EXP + ' is not defined')
+            act = pr.proactive3(txNode,env.now)
             txNode.modeTo(act[0])
             yield env.timeout(act[1])
         # to transmit
@@ -391,38 +360,14 @@ def transceiver(env,txNode):
                 result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
                 # rssi good and no col or mis
                 if result and not any(result):
-                    if EXP == 1:
-                        pr.reactive1(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
-                    elif EXP == 2:
-                        pr.reactive2(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
-                    elif EXP == 3:
-                        pr.reactive3(packet,txNode,nodes[i],env.now)
-                    elif EXP == 4:
-                        pr.reactive4(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
-                    elif EXP == 5:
-                        pr.reactive5(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
-                    else:
-                        raise ValueError('EXP number ' + EXP + ' is not defined')
+                    pr.reactive3(packet,txNode,nodes[i],env.now)
+   
                 # catch losing condition when node is critical
                 else:
-                    if EXP in [1,2,4,5]:
-                        cl.catch1(packet,txNode,nodes[i],result)
-                    elif EXP == 3:
-                        pass
-                        #cl.catch3(packet,txNode,nodes[i],result)
-                    else:
-                        raise ValueError('EXP number ' + EXP + ' is not defined')
+                    pass
+                    #cl.catch3(packet,txNode,nodes[i],result)
             txNode.modeTo(1)
             yield env.timeout(act[2])
         # to sleep
         else:
             pass
-
-#
-# spontaneous data packet generator
-# use this function when packet generation is NOT controlled by MAC protocol
-#
-def generator(env,node):
-    while True:
-        dt = pr.expoGen(node)
-        yield env.timeout(dt)
