@@ -272,13 +272,14 @@ class myNode():
             
             # query-based table
             self.childs = set()
+            self.resp = {} # child nodes responded or not
+            self.tout = {} # child nodes timeout count
             # GW only
             self.qlst = [] # ids of nodes to query
-            self.tout = {} # timeout count
-            self.resp = {} # responded or not
+            self.waiting = None # id of node being waiting for response
             # end devices only
             self.parent = None
-            self.lrt = 0 # time stamp of last received query / beacon
+            self.lrt = None # time of last received (query/beacon) from parent 
             self.joined = False
             self.hops = None
         
@@ -373,6 +374,9 @@ def transceiver(env,txNode):
             yield env.timeout(act[1])
         # to transmit
         elif txNode.mode == 2:
+            # special event for proactive3
+            if EXP == 3 and txNode.txBuffer[0].type == 2:
+                yield env.process(pr.wait_response(txNode)) # wait for response
             # transmit packet
             packet = txNode.txBuffer.pop(0)
             packet.appearTime = env.now
@@ -396,7 +400,7 @@ def transceiver(env,txNode):
                     elif EXP == 2:
                         pr.reactive2(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     elif EXP == 3:
-                        pr.reactive3(packet,txNode,nodes[i],env.now)
+                        pr.reactive3(packet,txNode,nodes[i])
                     elif EXP == 4:
                         pr.reactive4(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     elif EXP == 5:

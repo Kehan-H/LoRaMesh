@@ -3,12 +3,15 @@ import random
 import numpy as np
 import math
 
-import protocol as pr
 import catchloss as cl
+import reporting as rp
 
 #
 # CONTANTS
 #
+
+# experiment no.
+EXP = 0
 
 # default tx param
 PTX = 5
@@ -20,6 +23,33 @@ TTL = 4
 
 # shadowing
 SIGMA = 11.25
+
+# real-time show
+rts = False
+
+# p-csma param
+n0 = 5 # assumed no. of neighbour nodes
+p0 = (1-(1/n0))**(n0-1)
+
+# rssi margin to ensure reliable routing result
+RM1 = 5
+RM2 = 10
+
+# time thresholds for query-based protocols
+QTH = 5*60*1000 # no query
+RTH = 1000 # no response
+CTH = 5000 # no confirmation
+
+# hop limit
+HL = 5
+
+# avg time between generated data packets in ms
+avgGenTime = 1000*30
+
+# default packet length
+plenA = 10 # query/confirm/join
+plenB = 15 # data
+plenC = 20 # beacon
 
 # this is an array with measured values for sensitivity
 # see paper, Table 3
@@ -224,6 +254,7 @@ class myNode():
                 if node.id == atNode.rt.parent:
                     route.append(node)
                     atNode = node
+
         return route
     
     def getNbr(self):
@@ -248,13 +279,14 @@ class myNode():
             
             # query-based table
             self.childs = set()
+            self.resp = {} # child nodes responded or not
+            self.tout = {} # child nodes timeout count
             # GW only
             self.qlst = [] # ids of nodes to query
-            self.tout = {} # timeout count
-            self.resp = {} # responded or not
+            self.waiting = None # id of node being waiting for response
             # end devices only
             self.parent = None
-            self.lrt = 0 # time stamp of last received query / beacon
+            self.lrt = None # time of last received (query/beacon) from parent 
             self.joined = False
             self.hops = None
         
@@ -337,9 +369,53 @@ def transceiver(env,txNode):
     while True:
         # to receive
         if txNode.mode == 1:
-            act = pr.proactive3(txNode,env.now)
-            txNode.modeTo(act[0])
-            yield env.timeout(act[1])
+            nxMode = 1
+            dt1 = 0
+            dt2 = 0
+            # GW
+            if txNode.id == 0:
+                # has child, generate query
+                if txNode.rt.childs:
+                    # queue is empty. can start a new round of query
+                    if not txNode.rt.qlst:
+                        txNode.rt.qlst = list(txNode.rt.childs)
+                    # not waiting for response. can send the next query
+                    elif txNode.rt.waiting == None:
+                        id = txNode.rt.qlst.pop(0)
+                        txNode.genPacket(id,plenA,2)
+                        txNode.rt.waiting = id
+                    else:
+                        pass
+                # no child, generate beacon
+                else:
+                    txNode.genPacket(0,plenC,1)
+            # end devices
+            elif txNode.id > 0:
+                pass
+            else:
+                raise ValueError('undefined node id')
+
+            # has packet to transmit
+            if txNode.txBuffer:
+                nxMode = 2
+                # beacon
+                if txNode.txBuffer[0].type == 1:
+                    dt2 = 60*1000 # period
+                # query
+                elif txNode.txBuffer[0].type == 2:
+                    yield env.process(wait_response(env,txNode)) # wait for response
+                # data/confirm/request
+                elif txNode.txBuffer[0].type in [0,3,4]:
+                    pass
+                else:
+                    raise ValueError('undefined packet type')
+            # nothing to transmit
+            else:
+                nxMode = 1
+                dt1 = 200 # refresh
+            
+            txNode.modeTo(nxMode)
+            yield env.timeout(dt1)
         # to transmit
         elif txNode.mode == 2:
             # transmit packet
@@ -360,14 +436,151 @@ def transceiver(env,txNode):
                 result = nodes[i].checkDelivery(packet) # side effect: packet removed from rxBuffer
                 # rssi good and no col or mis
                 if result and not any(result):
-                    pr.reactive3(packet,txNode,nodes[i],env.now)
-   
+                    
+                    
+                    # GW
+                    if nodes[i].id == 0:
+                        # data
+                        if packet.type == 0:
+                            # arrive at dest
+                            if txNode.rt.parent == 0 and nodes[i].rt.waiting == packet.src.id:
+                                # update RT
+                                nodes[i].rt.waiting = None
+                                nodes[i].rt.resp[packet.src.id] = True
+                                nodes[i].rt.tout[packet.src.id] = 0
+                                # update statistics
+                                packet.src.arr += 1
+                                if packet.src.arr > packet.src.pkts:
+                                    raise ValueError('Node ' + str(packet.src.id) + ' has more arrived than generated.')
+                        # beacon/query/confirm/join request
+                        else:
+                            pass
+                    # end devices
+                    elif nodes[i].id > 0:
+                        # not joined
+                        if not nodes[i].rt.joined:
+                            # waiting for confirmation
+                            if nodes[i].rt.parent != None:
+                                # implies this is a confirmation packet or a query
+                                if packet.dest == nodes[i].id:
+                                    nodes[i].rt.joined = True
+                                    nodes[i].rt.lrt = env.now
+                                    yield env.process(wait_query(env,nodes[i]))
+                                    # query packet, directly reply data (implies confirmation is lost)
+                                    if packet.type == 2:
+                                        nodes[i].genPacket(0,plenB,0)
+                                    # real-time topology
+                                    if rts == True:
+                                        rp.plot_tree(nodes)
+                                        rp.save()
+                                        rp.close()
+                                else:
+                                    pass
+                            # not waiting, can send join request
+                            elif packet.type in [0,1,2] and txNode.rt.hops < HL:
+                                nodes[i].genPacket(0,plenA,3)
+                                nodes[i].rt.parent = txNode.id
+                                nodes[i].rt.hops = txNode.rt.hops + 1
+                                yield env.process(wait_confirm(env,nodes[i]))
+                            else:
+                                pass
+                        # already joined
+                        else:
+                            # data
+                            if packet.type == 0:
+                                if txNode.rt.parent == nodes[i].id:
+                                    nodes[i].rt.resp[packet.src.id] = True
+                                    nodes[i].rt.tout[packet.src.id] = 0
+                                    nodes[i].relayPacket(packet)
+                            # query
+                            elif packet.type == 2:
+                                if nodes[i].rt.parent == txNode.id:
+                                    if packet.dest == nodes[i].id:
+                                        nodes[i].rt.lrt = env.now
+                                        nodes[i].genPacket(0,plenB,0)
+                                    elif packet.dest in nodes[i].rt.childs:
+                                        nodes[i].relayPacket(packet)
+                                    else:
+                                        pass
+                            # beacon/confirm/join request
+                            else:
+                                pass
+                    # undefined device id == 0 
+                    else:
+                        raise ValueError('undefined node id')
+                    
+                    # join request
+                    if packet.type == 3:
+                        if txNode.rt.parent == nodes[i].id:
+                            # initialize child
+                            nodes[i].rt.tout[packet.src.id] = 0
+                            nodes[i].rt.resp[packet.src.id] = False
+                            nodes[i].rt.childs.add(packet.src.id)
+                            # not at GW, relay
+                            if nodes[i].id != 0:
+                                nodes[i].relayPacket(packet)
+                            # direct link
+                            if packet.src.id == txNode.id:
+                                nodes[i].genPacket(packet.src.id,plenA,4) # confirm
+                            # indirect link
+                            else:
+                                pass
+                        else:
+                            pass
+
+
                 # catch losing condition when node is critical
                 else:
                     pass
                     #cl.catch3(packet,txNode,nodes[i],result)
             txNode.modeTo(1)
-            yield env.timeout(act[2])
+            yield env.timeout(dt2)
         # to sleep
         else:
             pass
+
+def wait_response(env,node):
+    id = node.txBuffer[0].dest
+    node.rt.resp[id] = False
+    yield env.timeout(RTH)
+    if id == 0:
+        node.rt.waiting = None
+    # timeout
+    if not node.rt.resp[id]:
+        node.rt.tout[id] += 1
+        if node.rt.tout[id] > 5:
+            node.rt.tout.pop(id)
+            node.rt.resp.pop(id)
+            node.rt.childs.remove(id)
+            # real-time topology
+            if rts == True:
+                rp.plot_tree(nodes)
+                rp.save()
+                rp.close()
+
+def wait_query(env,node):
+    yield env.timeout(QTH)
+    # no query
+    if env.now - node.rt.lrt >= QTH:
+        node.rt.childs = set()
+        node.rt.resp = {}
+        node.rt.tout = {}
+
+        node.rt.parent = None
+        node.rt.lrt = None
+        node.rt.joined = False
+        node.rt.hops = None
+    # received query
+    else:
+        pass
+
+def wait_confirm(env,node):
+    yield env.timeout(CTH)
+    # no confirm
+    if not node.rt.joined:
+        node.rt.parent = None
+        node.rt.joined = False
+        node.rt.hops = None
+    # already joined
+    else:
+        pass

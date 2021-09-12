@@ -4,8 +4,7 @@
 import random
 import numpy as np
 
-import network as nw
-import protocol as pr
+import network_query as nw
 import reporting as rp
 
 #
@@ -28,17 +27,17 @@ nw.FREQ = 900000000
 nw.TTL = 10
 
 # protocol settings
-pr.n0 = 5
-pr.RM1 = 0
-pr.RM2 = 0
-pr.HL = 5
+nw.n0 = 5
+nw.RM1 = 0
+nw.RM2 = 0
+nw.HL = 5
 
 # time thresholds for query-based protocols
-pr.QTH = 5*60*1000 # no query
-pr.RTH = 2000 # no response
-pr.CTH = 1000 # no confirmation
+nw.QTH = 5*60*1000 # no query
+nw.RTH = 2000 # no response
+nw.CTH = 1000 # no confirmation
 
-pr.rts = True
+nw.rts = True
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
