@@ -541,6 +541,7 @@ def expoGen(node):
         raise ValueError('undefined node id')
     return dt
 
+# action code 1
 def wait_response(env,node):
     id = node.txBuffer[0].dest
     node.rt.resp[id] = False
@@ -560,6 +561,7 @@ def wait_response(env,node):
                 rp.save()
                 rp.close()
 
+# action code 2
 def wait_query(env,node):
     yield env.timeout(QTH)
     # no query
@@ -576,6 +578,7 @@ def wait_query(env,node):
     else:
         pass
 
+# action code 3
 def wait_confirm(env,node):
     yield env.timeout(CTH)
     # no confirm

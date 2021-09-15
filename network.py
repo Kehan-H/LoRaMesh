@@ -264,6 +264,10 @@ class myNode():
             # dictionary of FIFO lists; list structure [rssi0, rssi1, ... , rssin]
             self.rssiRec = {}
 
+            # dictionary of lists of timers
+            # a timer has the form (action code,execute time)
+            self.timerDict = {}
+
             # dsdv table
             self.destSet ={node.id}
             self.nextDict = {node.id:node.id}
@@ -374,9 +378,6 @@ def transceiver(env,txNode):
             yield env.timeout(act[1])
         # to transmit
         elif txNode.mode == 2:
-            # special event for proactive3
-            if EXP == 3 and txNode.txBuffer[0].type == 2:
-                yield env.process(pr.wait_response(txNode)) # wait for response
             # transmit packet
             packet = txNode.txBuffer.pop(0)
             packet.appearTime = env.now
