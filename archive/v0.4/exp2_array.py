@@ -17,7 +17,7 @@ simtime = 5*1000*60*60
 random.seed(15)
 
 # network settings
-nw.EXP = 3
+nw.EXP = rp.EXP = 2
 nw.SIGMA = 11.25
 
 nw.PTX = 12
@@ -37,14 +37,14 @@ pr.HL = 5
 pr.rts = False
 
 # base station initialization
-locsB = np.array([397.188492418693,226.186250701973])
+locsB = np.array([800,800])
 gw = nw.myNode(0,locsB[0],locsB[1])
 gw.genPacket(0,25,1)
 gw.genPacket(0,25,1)
 nw.nodes.append(gw)
 
 # end nodes initialization
-locsN = np.loadtxt('600x800.csv',delimiter=',')
+locsN = np.loadtxt('array.csv',delimiter=',')
 for i in range(0,locsN.shape[0]):
     node = nw.myNode(i+1,locsN[i,0],locsN[i,1])
     nw.nodes.append(node)
@@ -61,8 +61,6 @@ rp.figure()
 rp.plot_tree(nw.nodes)
 rp.figure()
 rp.hop_vs_pdr(nw.nodes)
-rp.figure()
-rp.id_vs_pdr(nw.nodes)
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

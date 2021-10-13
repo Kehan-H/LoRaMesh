@@ -26,12 +26,12 @@ SIGMA = 11.25
 
 # this is an array with measured values for sensitivity
 # see paper, Table 3
-sf7 = np.array([7, -126.5, -124.25, -120.75])
-sf8 = np.array([8, -127.25, -126.75, -124.0])
-sf9 = np.array([9, -131.25, -128.25, -127.5])
-sf10 = np.array([10, -132.75, -130.25, -128.75])
-sf11 = np.array([11, -134.5, -132.75, -128.75])
-sf12 = np.array([12, -133.25, -132.25, -132.25])
+sf7 = np.array([7,-126.5,-124.25,-120.75])
+sf8 = np.array([8,-127.25,-126.75,-124.0])
+sf9 = np.array([9,-131.25,-128.25,-127.5])
+sf10 = np.array([10,-132.75,-130.25,-128.75])
+sf11 = np.array([11,-134.5,-132.75,-128.75])
+sf12 = np.array([12,-133.25,-132.25,-132.25])
 
 sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
 
@@ -215,7 +215,7 @@ class myNode():
     # [next node, ... , destination node]
     def pathTo(self,dest):
         route = []
-        if EXP in [1, 2, 3]:
+        if EXP in [1,2,4,5]:
             if dest not in self.rt.destSet:
                 return route
             atNode = self
@@ -227,6 +227,19 @@ class myNode():
                     if node.id == atNode.rt.nextDict[dest]:
                         route.append(node)
                         atNode = node
+        elif EXP == 3:
+            if self.rt.parent == None:
+                return route
+            atNode = self
+            counter = 0
+            while atNode.id != 0:
+                counter = counter + 1
+                if counter > TTL:
+                    break
+                for node in nodes:
+                    if node.id == atNode.rt.parent:
+                        route.append(node)
+                        atNode = node
         else:
             raise ValueError('EXP number ' + EXP + ' is not defined') 
         return route
@@ -234,8 +247,11 @@ class myNode():
     def getNbr(self):
         nbr = set()
         for other in nodes:
-            if EXP in [1, 2, 3]:
+            if EXP in [1,2,4,5]:
                 if other.id in self.rt.nextDict.values():
+                    nbr.add(other)
+            elif EXP == 3:
+                if other.id == self.rt.parent:
                     nbr.add(other)
             else:
                 raise ValueError('EXP number ' + EXP + ' is not defined')
@@ -257,6 +273,19 @@ class myNode():
             self.nextDict = {node.id:node.id}
             self.metricDict = {node.id:0} # hops
             self.seqDict = {node.id:0}
+            
+            # query-based table
+            self.childs = set()
+            self.resp = {} # child nodes responded or not
+            self.tout = {} # child nodes timeout count
+            # GW only
+            self.qlst = [] # ids of nodes to query
+            self.waiting = None # id of node being waiting for response
+            # end devices only
+            self.parent = None
+            self.lrt = None # time of last received (query/beacon) from parent 
+            self.joined = False
+            self.hops = None
         
         # record new rssi value
         def newRssi(self,txid,rssi):
@@ -283,6 +312,9 @@ class myPacket():
         # packet type identifier:
         # 0 - data
         # 1 - routing beacon
+        # 2 - query
+        # 3 - join request
+        # 4 - confirm
         self.type = type
 
         # default RF settings
@@ -334,8 +366,12 @@ def transceiver(env,txNode):
     while True:
         # to receive
         if txNode.mode == 1:
-            if EXP in [1, 2, 3]:
+            if EXP == 1:
                 act = pr.proactive1(txNode,env.now)
+            elif EXP in [2,4,5]:
+                act = pr.proactive2(txNode,env.now)
+            elif EXP == 3:
+                act = pr.proactive3(txNode,env.now)
             else:
                 raise ValueError('EXP number ' + EXP + ' is not defined')
             txNode.modeTo(act[0])
@@ -365,13 +401,20 @@ def transceiver(env,txNode):
                     elif EXP == 2:
                         pr.reactive2(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     elif EXP == 3:
-                        pr.reactive3(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
+                        pr.reactive3(packet,txNode,nodes[i])
+                    elif EXP == 4:
+                        pr.reactive4(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
+                    elif EXP == 5:
+                        pr.reactive5(packet,txNode,nodes[i],packet.rssiAt[nodes[i]])
                     else:
                         raise ValueError('EXP number ' + EXP + ' is not defined')
                 # catch losing condition when node is critical
                 else:
-                    if EXP in [1, 2, 3]:
+                    if EXP in [1,2,4,5]:
                         cl.catch1(packet,txNode,nodes[i],result)
+                    elif EXP == 3:
+                        pass
+                        #cl.catch3(packet,txNode,nodes[i],result)
                     else:
                         raise ValueError('EXP number ' + EXP + ' is not defined')
             txNode.modeTo(1)

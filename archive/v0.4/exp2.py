@@ -17,7 +17,7 @@ simtime = 5*1000*60*60
 random.seed(15)
 
 # network settings
-nw.EXP = 3
+nw.EXP = rp.EXP = 2
 nw.SIGMA = 11.25
 
 nw.PTX = 12
@@ -61,8 +61,6 @@ rp.figure()
 rp.plot_tree(nw.nodes)
 rp.figure()
 rp.hop_vs_pdr(nw.nodes)
-rp.figure()
-rp.id_vs_pdr(nw.nodes)
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

@@ -18,7 +18,7 @@ random.seed(15)
 
 # network settings
 nw.EXP = 3
-nw.SIGMA = 11.25
+nw.SIGMA = 2
 
 nw.PTX = 12
 nw.SF = 7
@@ -29,18 +29,21 @@ nw.TTL = 10
 
 # protocol settings
 pr.n0 = 5
-pr.RM1 = 5
-pr.RM2 = 10
-pr.QTH = 5*60*1000
+pr.RM1 = 0
+pr.RM2 = 0
 pr.HL = 5
 
-pr.rts = False
+# time thresholds for query-based protocols
+pr.QTH = 5*60*1000 # no query
+pr.RTH = 2000 # no response
+pr.CTH = 1000 # no confirmation
+
+pr.rts = True
 
 # base station initialization
 locsB = np.array([397.188492418693,226.186250701973])
 gw = nw.myNode(0,locsB[0],locsB[1])
-gw.genPacket(0,25,1)
-gw.genPacket(0,25,1)
+gw.rt.hops = 0
 nw.nodes.append(gw)
 
 # end nodes initialization
@@ -50,10 +53,8 @@ for i in range(0,locsN.shape[0]):
     nw.nodes.append(node)
 
 # run nodes
-nw.env.process(nw.transceiver(nw.env,nw.nodes[0]))
-for i in range(1,len(nw.nodes)):
+for i in range(0,len(nw.nodes)):
     nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
-    nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
 rp.print_data(nw.nodes)
@@ -61,8 +62,6 @@ rp.figure()
 rp.plot_tree(nw.nodes)
 rp.figure()
 rp.hop_vs_pdr(nw.nodes)
-rp.figure()
-rp.id_vs_pdr(nw.nodes)
 rp.show()
 
 # energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6

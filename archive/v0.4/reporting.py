@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import glob
-import csv
 
 # show statistics
 def print_data(nodes):
@@ -91,19 +90,6 @@ def save():
         if idx >= max:
             max = idx + 1
     plt.savefig('topos/%d.png'%max)
-
-def save_data(nodes, filename):
-    with open(filename+'.csv', 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["id", "PDR", "AR", "CR", "MR", "hops", "x", "y"])
-        for node in nodes:
-            if node.id > 0:
-                pdr = node.arr/node.pkts
-                ar = node.atte/node.pkts
-                cr = node.coll/(node.pkts-node.atte)
-                mr = node.miss/(node.pkts-node.atte)
-                hops = len(node.pathTo(0))
-                writer.writerow([node.id, pdr, ar, cr, mr, hops, node.x, node.y])
 
 def legend():
     plt.legend()

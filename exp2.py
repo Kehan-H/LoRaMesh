@@ -17,7 +17,7 @@ simtime = 5*1000*60*60
 random.seed(15)
 
 # network settings
-nw.EXP = rp.EXP = 2
+nw.EXP = 2
 nw.SIGMA = 11.25
 
 nw.PTX = 12
