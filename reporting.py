@@ -21,6 +21,7 @@ def print_data(nodes):
                 print('Attenuated Rate = ' + str(node.atte/node.pkts))
                 print('Collision Rate = ' + str(node.coll/(node.pkts-node.atte)))
                 print('Miss Rate = ' + str(node.miss/(node.pkts-node.atte)))
+                print('Energy Consumption = ' + str(node.energy) + 'J')
             except:
                 pass
             print('\n')
@@ -95,7 +96,7 @@ def save():
 def save_data(nodes, filename):
     with open(filename+'.csv', 'w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(["id", "PDR", "AR", "CR", "MR", "hops", "x", "y"])
+        writer.writerow(["id", "pdr", "ar", "cr", "mr", "energy", "hops", "x", "y"])
         for node in nodes:
             if node.id > 0:
                 pdr = node.arr/node.pkts
@@ -103,7 +104,10 @@ def save_data(nodes, filename):
                 cr = node.coll/(node.pkts-node.atte)
                 mr = node.miss/(node.pkts-node.atte)
                 hops = len(node.pathTo(0))
-                writer.writerow([node.id, pdr, ar, cr, mr, hops, node.x, node.y])
+                writer.writerow([node.id, pdr, ar, cr, mr, node.energy, hops, node.x, node.y])
+            else:
+                writer.writerow([0, 0, 0, 0, 0, node.energy, 0, node.x, node.y])
+
 
 def legend():
     plt.legend()

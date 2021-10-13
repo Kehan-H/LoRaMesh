@@ -35,6 +35,14 @@ sf12 = np.array([12, -133.25, -132.25, -132.25])
 
 sensi = np.array([sf7,sf8,sf9,sf10,sf11,sf12])
 
+# energy model
+# Transmit consumption in mA from -2 to +17 dBm
+TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
+      24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
+      82, 85, 90,                                          # PA_BOOST/PA1: 15..17
+      105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
+V = 3.0     # voltage XXX
+
 #
 # global stuff
 #
@@ -155,6 +163,7 @@ class myNode():
         self.sleepTime = 0
         self.rxTime = 0
         self.txTime = 0
+        self.energy = 0 # totoal energy consumption in J
 
         # statistics
         self.coll = 0 # packets lost due to collision
@@ -203,8 +212,10 @@ class myNode():
             self.sleepTime += pastTime
         elif self.mode == 1:
             self.rxTime += pastTime
+            self.energy += pastTime * 10.5 * V / 1e6
         elif self.mode == 2:
             self.txTime += pastTime
+            self.energy += pastTime * TX[int(PTX)+2] * V / 1e6
             for entry in self.rxBuffer:
                 entry[2] = 1 # packets not fully received are missed
         else:
