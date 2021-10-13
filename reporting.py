@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import glob
 import csv
+import math 
 
 # show statistics
 def print_data(nodes):
@@ -96,7 +97,11 @@ def save():
 def save_data(nodes, filename):
     with open(filename+'.csv', 'w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(["id", "pdr", "ar", "cr", "mr", "energy", "hops", "x", "y"])
+        writer.writerow(["id", "pdr", "ar", "cr", "mr", "energy", "hops", "dist"])
+        for node in nodes:
+            if node.id == 0:
+                x0 = node.x
+                y0 = node.y
         for node in nodes:
             if node.id > 0:
                 pdr = node.arr/node.pkts
@@ -104,9 +109,8 @@ def save_data(nodes, filename):
                 cr = node.coll/(node.pkts-node.atte)
                 mr = node.miss/(node.pkts-node.atte)
                 hops = len(node.pathTo(0))
-                writer.writerow([node.id, pdr, ar, cr, mr, node.energy, hops, node.x, node.y])
-            else:
-                writer.writerow([0, 0, 0, 0, 0, node.energy, 0, node.x, node.y])
+                dist = math.sqrt((node.x-x0)**2+(node.y-y0)**2)
+                writer.writerow([node.id, pdr, ar, cr, mr, node.energy, hops, dist])
 
 
 def legend():

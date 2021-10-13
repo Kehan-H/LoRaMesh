@@ -14,7 +14,7 @@ import reporting as rp
 
 # simulation settings
 simtime = 5*1000*60*60
-random.seed(15)
+# random.seed(15)
 
 # network settings
 nw.EXP = 3
