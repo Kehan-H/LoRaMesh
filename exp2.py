@@ -18,7 +18,7 @@ random.seed(15)
 
 # network settings
 nw.EXP = 2
-nw.SIGMA = 11.25
+nw.SIGMA = 5
 
 nw.PTX = 12
 nw.SF = 7
@@ -56,6 +56,7 @@ for i in range(1,len(nw.nodes)):
     nw.env.process(nw.generator(nw.env,nw.nodes[i]))
 nw.env.run(until=simtime) # start simulation
 
+rp.save_data(nw.nodes, "exp2")
 rp.print_data(nw.nodes)
 rp.figure()
 rp.plot_tree(nw.nodes)

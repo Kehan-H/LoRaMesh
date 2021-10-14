@@ -18,7 +18,7 @@ random.seed(15)
 
 # network settings
 nw.EXP = 1
-nw.SIGMA = 11.25
+nw.SIGMA = 5
 
 nw.PTX = 12
 nw.SF = 7

@@ -17,13 +17,8 @@ p0 = (1-(1/n0))**(n0-1)
 RM1 = 5
 RM2 = 10
 
-# time thresholds for query-based protocols
-QTH = 5*60*1000 # no query
-RTH = 1000 # no response
-CTH = 5000 # no confirmation
-
 # hop limit
-HL = 5
+HL = 10
 
 # avg time between generated data packets in ms
 avgGenTime = 1000*30
