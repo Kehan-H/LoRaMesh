@@ -32,7 +32,7 @@ pr.n0 = 5
 pr.RM1 = 0
 pr.RM2 = 0
 pr.QTH = 5*60*1000
-pr.HL = 3
+pr.HL = 5
 
 pr.rts = False
 
@@ -60,14 +60,3 @@ rp.print_data(nw.nodes)
 rp.figure()
 rp.plot_tree(nw.nodes)
 rp.show()
-
-# energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
-# sent = sum(n.sent for n in nodes)
-# V = 3.0     # voltage XXX
-# # mA = 90    # current draw for TX = 17 dBm
-#       105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
-#       82, 85, 90,                                          # PA_BOOST/PA1: 15..17
-#       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
-# TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
-# # Transmit consumption in mA from -2 to +17 dBm
-# # compute energy

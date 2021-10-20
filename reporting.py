@@ -17,14 +17,19 @@ def print_data(nodes):
             else:
                 routeStr = ' no route'
             print(str(node.id) + ':' + routeStr)
-            try:
+            if node.pkts == 0:
+                print('PDR = NA')
+                print('Attenuated Rate = NA')
+            else:
                 print('PDR = ' + str(node.arr/node.pkts))
                 print('Attenuated Rate = ' + str(node.atte/node.pkts))
+            if node.pkts-node.atte == 0:
+                print('Collision Rate = NA')
+                print('Miss Rate = NA')
+            else:
                 print('Collision Rate = ' + str(node.coll/(node.pkts-node.atte)))
                 print('Miss Rate = ' + str(node.miss/(node.pkts-node.atte)))
-                print('Energy Consumption = ' + str(node.energy) + 'J')
-            except:
-                pass
+            print('Energy Consumption = ' + str(node.energy) + 'J')
             print('\n')
 
 # show topology
@@ -104,10 +109,18 @@ def save_data(nodes, filename):
                 y0 = node.y
         for node in nodes:
             if node.id > 0:
-                pdr = node.arr/node.pkts
-                ar = node.atte/node.pkts
-                cr = node.coll/(node.pkts-node.atte)
-                mr = node.miss/(node.pkts-node.atte)
+                if node.pkts == 0:
+                    pdr = 0
+                    ar = 0
+                else:
+                    pdr = node.arr/node.pkts
+                    ar = node.atte/node.pkts
+                if node.pkts-node.atte == 0:
+                    cr = 0
+                    mr = 0
+                else:
+                    cr = node.coll/(node.pkts-node.atte)
+                    mr = node.miss/(node.pkts-node.atte)
                 hops = len(node.pathTo(0))
                 dist = math.sqrt((node.x-x0)**2+(node.y-y0)**2)
                 writer.writerow([node.id, pdr, ar, cr, mr, node.energy, hops, dist])
