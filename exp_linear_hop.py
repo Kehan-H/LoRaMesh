@@ -14,7 +14,7 @@ import protocol as pr
 # variables
 N = 20 # maximum number of hops
 D = 500 # end2end distance
-relay_only = 1
+relay_only = 0
 
 # simulation settings
 simtime = 5*1000*60*60
@@ -70,7 +70,7 @@ def run_exp(n):
     return nw.nodes
 
 # main
-with open('linear.csv', 'w', newline='') as file:
+with open('linear_hop.csv', 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow(["dist", "hops", "pdr", "ar", "cr", "mr", "energy"])
     for hops in range(1, N+1):
