@@ -8,6 +8,9 @@ import network as nw
 import protocol as pr
 import reporting as rp
 
+import csv
+
+
 #
 # "main" program
 #
@@ -17,8 +20,7 @@ simtime = 5*1000*60*60
 random.seed(15)
 
 # network settings
-
-nw.SIGMA = 11.25
+nw.EXP = 3
 
 nw.PTX = 12
 nw.SF = 7
@@ -36,12 +38,11 @@ pr.HL = 5
 
 pr.rts = False
 
-
-def run_exp(EXP):
-    nw.EXP = EXP
-
+def run_exp(sigma):
     nw.nodes = []
     nw.env = nw.simpy.Environment()
+
+    nw.SIGMA = sigma
 
     # base station initialization
     locsB = np.array([397.188492418693,226.186250701973])
@@ -62,31 +63,18 @@ def run_exp(EXP):
         nw.env.process(nw.transceiver(nw.env,nw.nodes[i]))
         nw.env.process(nw.generator(nw.env,nw.nodes[i]))
     nw.env.run(until=simtime) # start simulation
-
     return nw.nodes
 
-# plot
-nodes1=run_exp(1)
-nodes2=run_exp(2)
-nodes4=run_exp(3)
-rp.figure()
-rp.hop_vs_pdr(nodes1,color='tab:red')
-rp.hop_vs_pdr(nodes2,color='tab:green')
-rp.hop_vs_pdr(nodes4,color='tab:blue')
-rp.figure()
-rp.id_vs_pdr(nodes1,color='tab:red',shift=-0.15,width=0.15)
-rp.id_vs_pdr(nodes2,color='tab:green',shift=0,width=0.15)
-rp.id_vs_pdr(nodes4,color='tab:blue',shift=0.15,width=0.15)
-
-rp.show()
-
-# energy = sum(node.packet.airtime * TX[int(node.packet.txpow)+2] * V * node.sent for node in nodes) / 1e6
-# sent = sum(n.sent for n in nodes)
-# V = 3.0     # voltage XXX
-# # mA = 90    # current draw for TX = 17 dBm
-#       105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
-#       82, 85, 90,                                          # PA_BOOST/PA1: 15..17
-#       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
-# TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
-# # Transmit consumption in mA from -2 to +17 dBm
-# # compute energy
+# main
+with open('exp3_sigma.csv', 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["sigma", "avg_pdr"])
+    for sigma in range(0, 10):
+        nodes = run_exp(sigma)
+        ss = 0
+        nn = 0
+        for i in range(1,len(nodes)):
+            node = nodes[i]
+            ss = ss +  node.arr/node.pkts
+            nn = nn + 1
+        writer.writerow([sigma, ss/nn])
