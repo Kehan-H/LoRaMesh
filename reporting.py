@@ -19,10 +19,10 @@ def print_data(nodes):
             print(str(node.id) + ':' + routeStr)
             if node.pkts == 0:
                 print('PDR = NA')
-                print('Attenuated Rate = NA')
+                print('Attenuation Rate = NA')
             else:
                 print('PDR = ' + str(node.arr/node.pkts))
-                print('Attenuated Rate = ' + str(node.atte/node.pkts))
+                print('Attenuation Rate = ' + str(node.atte/node.pkts))
             if node.pkts-node.atte == 0:
                 print('Collision Rate = NA')
                 print('Miss Rate = NA')
